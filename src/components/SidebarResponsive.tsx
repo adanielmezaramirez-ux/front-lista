@@ -1,5 +1,5 @@
 import React from 'react';
-import { Nav } from 'react-bootstrap';
+import { Nav, Image } from 'react-bootstrap';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { 
@@ -33,7 +33,6 @@ const SidebarResponsive: React.FC<SidebarResponsiveProps> = ({ isOpen, onClose }
     handleLinkClick();
   };
 
-  // Determinar si una ruta está activa (para rutas hijas)
   const isActiveRoute = (path: string) => {
     if (path === '/dashboard') {
       return location.pathname === '/dashboard';
@@ -43,16 +42,13 @@ const SidebarResponsive: React.FC<SidebarResponsiveProps> = ({ isOpen, onClose }
 
   return (
     <>
-      {/* Overlay oscuro cuando el sidebar está abierto en móvil */}
       <div 
         className={`sidebar-overlay ${isOpen ? 'show' : ''}`} 
         onClick={onClose}
         aria-hidden="true"
       />
 
-      {/* Sidebar */}
       <div className={`sidebar ${isOpen ? 'open' : ''}`}>
-        {/* Botón de cerrar para móvil */}
         <button 
           className="sidebar-close-btn d-md-none"
           onClick={onClose}
@@ -62,13 +58,15 @@ const SidebarResponsive: React.FC<SidebarResponsiveProps> = ({ isOpen, onClose }
         </button>
 
         <div className="text-white p-3">
-          {/* Información del usuario */}
           <div className="text-center mb-4">
-            <div className="user-avatar mb-2">
-              <div className="bg-white text-primary rounded-circle d-inline-flex align-items-center justify-content-center" 
-                   style={{ width: '60px', height: '60px', fontSize: '24px' }}>
-                {user?.firstname?.charAt(0)}{user?.lastname?.charAt(0)}
-              </div>
+            <div className="mb-3">
+              <Image 
+                src="/vite.svg" 
+                alt="Logo" 
+                width="80" 
+                height="80"
+                className="bg-white p-3 rounded-circle"
+              />
             </div>
             <h5 className="mb-1">{user?.firstname} {user?.lastname}</h5>
             <small className="text-white-50 d-block mb-2">@{user?.username}</small>
@@ -77,7 +75,6 @@ const SidebarResponsive: React.FC<SidebarResponsiveProps> = ({ isOpen, onClose }
             </span>
           </div>
 
-          {/* Navegación */}
           <Nav className="flex-column">
             <Nav.Link 
               as={Link} 
@@ -118,24 +115,24 @@ const SidebarResponsive: React.FC<SidebarResponsiveProps> = ({ isOpen, onClose }
             )}
 
             {isMaestro && (
-            <>
+              <>
                 <Nav.Link 
-                as={Link} 
-                to="/maestro/clases" 
-                className={isActiveRoute('/maestro/clases') ? 'active' : ''}
-                onClick={handleLinkClick}
+                  as={Link} 
+                  to="/maestro/clases" 
+                  className={isActiveRoute('/maestro/clases') ? 'active' : ''}
+                  onClick={handleLinkClick}
                 >
-                <Book className="me-2" /> Mis Clases
+                  <Book className="me-2" /> Mis Clases
                 </Nav.Link>
                 <Nav.Link 
-                as={Link} 
-                to="/maestro/asistencias"
-                className={isActiveRoute('/maestro/asistencias') ? 'active' : ''}
-                onClick={handleLinkClick}
+                  as={Link} 
+                  to="/maestro/asistencias"
+                  className={isActiveRoute('/maestro/asistencias') ? 'active' : ''}
+                  onClick={handleLinkClick}
                 >
-                <CalendarCheck className="me-2" /> Gestionar Asistencias
+                  <CalendarCheck className="me-2" /> Gestionar Asistencias
                 </Nav.Link>
-            </>
+              </>
             )}
 
             <Nav.Link 
@@ -155,14 +152,13 @@ const SidebarResponsive: React.FC<SidebarResponsiveProps> = ({ isOpen, onClose }
             </Nav.Link>
           </Nav>
 
-          {/* Versión de la app */}
           <div className="text-center mt-4 pt-3 border-top border-white-50">
             <small className="text-white-50">
-                © 2026 Hanxue School Educación Intercultural
+              © 2026 Hanxue School Educación Intercultural
             </small>
             <br />
             <small className="text-white-50">
-               Listas Hanxue - Versión 1.0.0
+              Listas Hanxue - Versión 1.0.0
             </small>
           </div>
         </div>

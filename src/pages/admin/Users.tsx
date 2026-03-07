@@ -1,9 +1,20 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Button, Modal, Form, Badge, Alert, ProgressBar } from 'react-bootstrap';
+import { Table, Button, Modal, Form, Badge, Alert, ProgressBar, Card, Row, Col, InputGroup } from 'react-bootstrap';
 import { adminService } from '../../services/adminService';
 import { User } from '../../interfaces';
 import LoadingSpinner from '../../components/LoadingSpinner';
-import { PersonBadge, Person, PersonPlus } from 'react-bootstrap-icons';
+import { 
+  Search, 
+  Filter,
+  Check2,
+  X,
+  ArrowRepeat,
+  Shield,
+  People,
+  Gear,
+  ExclamationTriangle,
+  Check2Square
+} from 'react-bootstrap-icons';
 
 interface SelectedUser {
   id: number;
@@ -26,16 +37,14 @@ const Users: React.FC = () => {
   const [processedCount, setProcessedCount] = useState(0);
   const [totalToProcess, setTotalToProcess] = useState(0);
   const [currentUser, setCurrentUser] = useState('');
-  
-  // Selección individual
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [selectAll, setSelectAll] = useState(false);
 
   useEffect(() => {
     fetchUsers();
   }, []);
 
   useEffect(() => {
-    // Filtrar usuarios por búsqueda y rol
     let filtered = users;
 
     if (searchTerm) {
@@ -56,7 +65,8 @@ const Users: React.FC = () => {
     }
 
     setFilteredUsers(filtered);
-  }, [users, searchTerm, filterRole]);
+    setSelectAll(selectedIds.size === filtered.length && filtered.length > 0);
+  }, [users, searchTerm, filterRole, selectedIds.size, filteredUsers.length]);
 
   const fetchUsers = async () => {
     try {
@@ -70,29 +80,10 @@ const Users: React.FC = () => {
     }
   };
 
-  // Seleccionar por filtro
-  const selectByFilter = (roleFilter: string) => {
-    const newSelected = new Set<number>();
-    
-    filteredUsers.forEach(user => {
-      if (roleFilter === 'todos') {
-        newSelected.add(user.id);
-      } else if (roleFilter === 'sin-rol' && !user.role_name) {
-        newSelected.add(user.id);
-      } else if (user.role_name === roleFilter) {
-        newSelected.add(user.id);
-      }
-    });
-
-    setSelectedIds(newSelected);
-  };
-
-  // Limpiar selección
   const clearSelection = () => {
     setSelectedIds(new Set());
   };
 
-  // Seleccionar/Deseleccionar usuario individual
   const toggleUser = (userId: number) => {
     const newSelected = new Set(selectedIds);
     if (newSelected.has(userId)) {
@@ -103,7 +94,15 @@ const Users: React.FC = () => {
     setSelectedIds(newSelected);
   };
 
-  // Preparar cambio individual
+  const handleSelectAll = () => {
+    if (selectAll) {
+      clearSelection();
+    } else {
+      const allIds = new Set(filteredUsers.map(u => u.id));
+      setSelectedIds(allIds);
+    }
+  };
+
   const prepareSingleRoleChange = (user: User) => {
     setSelectedUsers([{
       id: user.id,
@@ -114,7 +113,6 @@ const Users: React.FC = () => {
     setShowModal(true);
   };
 
-  // Preparar cambio masivo
   const prepareBulkRoleChange = (role: string) => {
     const selected = Array.from(selectedIds).map(id => {
       const user = users.find(u => u.id === id);
@@ -130,7 +128,6 @@ const Users: React.FC = () => {
     setShowModal(true);
   };
 
-  // Procesar cambios
   const handleAssignRole = async () => {
     if (!selectedUsers.length || !selectedRole) return;
 
@@ -152,11 +149,9 @@ const Users: React.FC = () => {
         setError(`Error con usuario ${user.username}`);
       }
 
-      // Pequeña pausa para no sobrecargar el servidor
       await new Promise(resolve => setTimeout(resolve, 100));
     }
 
-    // Recargar usuarios después de completar
     await fetchUsers();
     
     setUpdating(false);
@@ -167,283 +162,355 @@ const Users: React.FC = () => {
   };
 
   const getRoleBadge = (role?: string) => {
-    if (!role) return <Badge bg="secondary">Sin rol</Badge>;
+    if (!role) return <Badge bg="secondary" className="px-2 py-1">Sin rol</Badge>;
     
-    const variants: { [key: string]: string } = {
-      admin: 'danger',
-      maestro: 'warning',
-      alumno: 'success',
+    const variants: { [key: string]: { bg: string, icon: any, label: string } } = {
+      admin: { bg: 'danger', icon: <Shield className="me-1" size={12} />, label: 'Admin' },
+      maestro: { bg: 'warning', icon: <People className="me-1" size={12} />, label: 'Maestro' },
+      alumno: { bg: 'success', icon: <People className="me-1" size={12} />, label: 'Alumno' },
     };
-    return <Badge bg={variants[role] || 'secondary'}>{role}</Badge>;
+    
+    const config = variants[role] || { bg: 'secondary', icon: null, label: role };
+    
+    return (
+      <Badge bg={config.bg} className="px-2 py-1 d-inline-flex align-items-center">
+        {config.icon}
+        {config.label}
+      </Badge>
+    );
   };
 
   const getStatusBadge = (user: User) => {
-    if (user.deleted) return <Badge bg="dark">Eliminado</Badge>;
-    if (user.suspended) return <Badge bg="danger">Suspendido</Badge>;
-    if (!user.confirmed) return <Badge bg="warning">No confirmado</Badge>;
-    return <Badge bg="success">Activo</Badge>;
+    if (user.deleted) return <Badge bg="dark" className="px-2 py-1">Eliminado</Badge>;
+    if (user.suspended) return <Badge bg="danger" className="px-2 py-1">Suspendido</Badge>;
+    if (!user.confirmed) return <Badge bg="warning" className="px-2 py-1">No confirmado</Badge>;
+    return <Badge bg="success" className="px-2 py-1">Activo</Badge>;
+  };
+
+  const getRoleCounts = () => {
+    const counts = {
+      total: users.length,
+      admin: users.filter(u => u.role_name === 'admin').length,
+      maestro: users.filter(u => u.role_name === 'maestro').length,
+      alumno: users.filter(u => u.role_name === 'alumno').length,
+      sinRol: users.filter(u => !u.role_name).length
+    };
+    return counts;
   };
 
   if (loading) return <LoadingSpinner />;
 
+  const counts = getRoleCounts();
+
   return (
-    <div>
-      <h2 className="mb-4">Gestión de Usuarios</h2>
-
-      {error && <Alert variant="danger" dismissible onClose={() => setError('')}>{error}</Alert>}
-
-      {/* Barra de selección masiva */}
-      {selectedIds.size > 0 && (
-        <div className="bulk-actions-bar">
-          <div className="d-flex align-items-center flex-wrap gap-2">
-            <strong className="me-3">
-              {selectedIds.size} usuario{selectedIds.size !== 1 ? 's' : ''} seleccionado{selectedIds.size !== 1 ? 's' : ''}
-            </strong>
-            <Button 
-              variant="outline-secondary" 
-              size="sm" 
-              onClick={clearSelection}
-              className="me-3"
-            >
-              Limpiar
-            </Button>
-            
-            <div className="d-flex gap-2 flex-wrap">
-              <Button
-                variant="danger"
-                size="sm"
-                onClick={() => prepareBulkRoleChange('admin')}
-              >
-                <PersonBadge className="me-1" /> Cambiar a Admin
-              </Button>
-              <Button
-                variant="warning"
-                size="sm"
-                onClick={() => prepareBulkRoleChange('maestro')}
-              >
-                <Person className="me-1" /> Cambiar a Maestro
-              </Button>
-              <Button
-                variant="success"
-                size="sm"
-                onClick={() => prepareBulkRoleChange('alumno')}
-              >
-                <PersonPlus className="me-1" /> Cambiar a Alumno
-              </Button>
-            </div>
-          </div>
+    <div className="container-fluid px-0 py-3 vh-100 d-flex flex-column">
+      {/* Header compacto */}
+      <div className="d-flex justify-content-between align-items-center mb-3">
+        <div>
+          <h4 className="mb-1">Gestión de Usuarios</h4>
+          <small className="text-muted">
+            <People className="me-1" size={14} />
+            Total: <strong>{counts.total}</strong> usuarios
+          </small>
         </div>
+        <Button variant="outline-primary" size="sm" onClick={fetchUsers}>
+          <ArrowRepeat className="me-2" /> Actualizar
+        </Button>
+      </div>
+
+      {error && <Alert variant="danger" size="sm" onClose={() => setError('')} dismissible>{error}</Alert>}
+
+      {/* Stats Cards compactas */}
+      <Row className="mb-3 g-2">
+        <Col xs={6} sm={3} md={2}>
+          <Card className="text-center border-primary">
+            <Card.Body className="p-2">
+              <Shield className="text-danger mb-1" size={18} />
+              <h6 className="mb-0">{counts.admin}</h6>
+              <small className="text-muted">Admins</small>
+            </Card.Body>
+          </Card>
+        </Col>
+        <Col xs={6} sm={3} md={2}>
+          <Card className="text-center border-warning">
+            <Card.Body className="p-2">
+              <People className="text-warning mb-1" size={18} />
+              <h6 className="mb-0">{counts.maestro}</h6>
+              <small className="text-muted">Maestros</small>
+            </Card.Body>
+          </Card>
+        </Col>
+        <Col xs={6} sm={3} md={2}>
+          <Card className="text-center border-success">
+            <Card.Body className="p-2">
+              <People className="text-success mb-1" size={18} />
+              <h6 className="mb-0">{counts.alumno}</h6>
+              <small className="text-muted">Alumnos</small>
+            </Card.Body>
+          </Card>
+        </Col>
+        <Col xs={6} sm={3} md={2}>
+          <Card className="text-center border-secondary">
+            <Card.Body className="p-2">
+              <ExclamationTriangle className="text-secondary mb-1" size={18} />
+              <h6 className="mb-0">{counts.sinRol}</h6>
+              <small className="text-muted">Sin rol</small>
+            </Card.Body>
+          </Card>
+        </Col>
+        <Col xs={12} sm={12} md={4}>
+          <Card className="h-100 bg-light">
+            <Card.Body className="p-2 d-flex align-items-center">
+              <Gear className="text-primary me-2" size={20} />
+              <div>
+                <small className="text-muted d-block">Visibles</small>
+                <strong>{filteredUsers.length}/{counts.total}</strong>
+              </div>
+            </Card.Body>
+          </Card>
+        </Col>
+      </Row>
+
+      {/* Barra de selección masiva compacta */}
+      {selectedIds.size > 0 && (
+        <Card className="mb-3 border-primary bg-light">
+          <Card.Body className="py-2">
+            <Row className="align-items-center g-2">
+              <Col xs="auto">
+                <Badge bg="primary" className="px-2 py-1 d-inline-flex align-items-center">
+                  <Check2Square className="me-1" size={12} />
+                  {selectedIds.size} seleccionado{selectedIds.size !== 1 ? 's' : ''}
+                </Badge>
+              </Col>
+              <Col>
+                <div className="d-flex gap-2 justify-content-end">
+                  <Button variant="outline-secondary" size="sm" onClick={clearSelection}>
+                    <X className="me-1" size={14} /> Limpiar
+                  </Button>
+                  <Button variant="outline-danger" size="sm" onClick={() => prepareBulkRoleChange('admin')}>
+                    <Shield className="me-1" size={14} /> Admin
+                  </Button>
+                  <Button variant="outline-warning" size="sm" onClick={() => prepareBulkRoleChange('maestro')}>
+                    <People className="me-1" size={14} /> Maestro
+                  </Button>
+                  <Button variant="outline-success" size="sm" onClick={() => prepareBulkRoleChange('alumno')}>
+                    <People className="me-1" size={14} /> Alumno
+                  </Button>
+                </div>
+              </Col>
+            </Row>
+          </Card.Body>
+        </Card>
       )}
 
-      {/* Filtros */}
-      <div className="row mb-3">
-        <div className="col-md-4 mb-2">
-          <Form.Control
-            type="text"
-            placeholder="Buscar usuarios..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </div>
-        <div className="col-md-3 mb-2">
-          <Form.Select 
-            value={filterRole} 
-            onChange={(e) => setFilterRole(e.target.value)}
-          >
-            <option value="todos">Todos los roles</option>
-            <option value="admin">Administradores</option>
-            <option value="maestro">Maestros</option>
-            <option value="alumno">Alumnos</option>
-            <option value="sin-rol">Sin rol</option>
-          </Form.Select>
-        </div>
-        <div className="col-md-5 mb-2">
-          <div className="d-flex gap-2 justify-content-end flex-wrap">
-            <Button variant="outline-primary" size="sm" onClick={() => selectByFilter('todos')}>
-              Todos
-            </Button>
-            <Button variant="outline-danger" size="sm" onClick={() => selectByFilter('admin')}>
-              Admins
-            </Button>
-            <Button variant="outline-warning" size="sm" onClick={() => selectByFilter('maestro')}>
-              Maestros
-            </Button>
-            <Button variant="outline-success" size="sm" onClick={() => selectByFilter('alumno')}>
-              Alumnos
-            </Button>
-            <Button variant="outline-secondary" size="sm" onClick={() => selectByFilter('sin-rol')}>
-              Sin rol
-            </Button>
-          </div>
-        </div>
-      </div>
-
-      {/* Tabla con scroll */}
-      <div className="table-responsive-custom">
-        <Table striped bordered hover responsive className="bg-white mb-0">
-          <thead>
-            <tr>
-              <th width="40">
-                <Form.Check
-                  type="checkbox"
-                  checked={selectedIds.size === filteredUsers.length && filteredUsers.length > 0}
-                  onChange={(e) => {
-                    if (e.target.checked) {
-                      const allIds = new Set(filteredUsers.map(u => u.id));
-                      setSelectedIds(allIds);
-                    } else {
-                      clearSelection();
-                    }
-                  }}
+      {/* Filtros compactos */}
+      <Card className="mb-3">
+        <Card.Body className="p-2">
+          <Row className="g-2">
+            <Col md={6}>
+              <InputGroup size="sm">
+                <InputGroup.Text>
+                  <Search size={14} />
+                </InputGroup.Text>
+                <Form.Control
+                  type="text"
+                  placeholder="Buscar usuario, nombre o email..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
                 />
-              </th>
-              <th>ID</th>
-              <th>Usuario</th>
-              <th>Nombre</th>
-              <th>Email</th>
-              <th>Rol</th>
-              <th>Estado</th>
-              <th>Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredUsers.map((user) => (
-              <tr key={user.id}>
-                <td>
-                  <Form.Check
-                    type="checkbox"
-                    checked={selectedIds.has(user.id)}
-                    onChange={() => toggleUser(user.id)}
-                  />
-                </td>
-                <td>{user.id}</td>
-                <td>{user.username}</td>
-                <td>{user.firstname} {user.lastname}</td>
-                <td>{user.email}</td>
-                <td>{getRoleBadge(user.role_name)}</td>
-                <td>{getStatusBadge(user)}</td>
-                <td>
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    onClick={() => prepareSingleRoleChange(user)}
-                  >
-                    Cambiar Rol
+                {searchTerm && (
+                  <Button variant="outline-secondary" size="sm" onClick={() => setSearchTerm('')}>
+                    <X size={14} />
                   </Button>
-                </td>
-              </tr>
-            ))}
-            {filteredUsers.length === 0 && (
-              <tr>
-                <td colSpan={8} className="text-center text-muted py-4">
-                  No se encontraron usuarios
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </Table>
-      </div>
+                )}
+              </InputGroup>
+            </Col>
+            <Col md={4}>
+              <InputGroup size="sm">
+                <InputGroup.Text>
+                  <Filter size={14} />
+                </InputGroup.Text>
+                <Form.Select 
+                  value={filterRole} 
+                  onChange={(e) => setFilterRole(e.target.value)}
+                >
+                  <option value="todos">Todos ({counts.total})</option>
+                  <option value="admin">Admins ({counts.admin})</option>
+                  <option value="maestro">Maestros ({counts.maestro})</option>
+                  <option value="alumno">Alumnos ({counts.alumno})</option>
+                  <option value="sin-rol">Sin rol ({counts.sinRol})</option>
+                </Form.Select>
+              </InputGroup>
+            </Col>
+            <Col md={2}>
+              <Button 
+                variant="outline-primary" 
+                size="sm"
+                onClick={handleSelectAll}
+                className="w-100"
+              >
+                <Check2Square className="me-1" size={14} />
+                {selectAll ? 'Deseleccionar' : 'Seleccionar'}
+              </Button>
+            </Col>
+          </Row>
+        </Card.Body>
+      </Card>
 
-      {/* Modal de confirmación de rol */}
-      <Modal show={showModal} onHide={() => !updating && setShowModal(false)}>
-        <Modal.Header closeButton={!updating}>
-          <Modal.Title>
-            {selectedUsers.length > 1 ? 'Cambiar Roles en Lote' : 'Cambiar Rol'}
+      {/* Tabla con scroll optimizado */}
+      <Card className="flex-grow-1 d-flex flex-column">
+        <Card.Header className="bg-light py-2">
+          <div className="d-flex justify-content-between align-items-center">
+            <span className="fw-bold">Lista de Usuarios</span>
+            {selectedIds.size > 0 && (
+              <Badge bg="primary" className="px-2 py-1">
+                <Check2Square className="me-1" size={12} />
+                {selectedIds.size} seleccionados
+              </Badge>
+            )}
+          </div>
+        </Card.Header>
+        <Card.Body className="p-0 overflow-auto" style={{ maxHeight: 'calc(100vh - 320px)' }}>
+          <Table size="sm" striped hover className="mb-0">
+            <thead className="bg-light sticky-top" style={{ top: 0 }}>
+              <tr>
+                <th width="40" className="text-center">
+                  <Form.Check type="checkbox" checked={selectAll} onChange={handleSelectAll} />
+                </th>
+                <th>ID</th>
+                <th>Usuario</th>
+                <th>Nombre</th>
+                <th>Email</th>
+                <th>Rol</th>
+                <th>Estado</th>
+                <th width="90">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredUsers.map((user) => (
+                <tr key={user.id} className={selectedIds.has(user.id) ? 'table-primary' : ''}>
+                  <td className="text-center">
+                    <Form.Check
+                      type="checkbox"
+                      checked={selectedIds.has(user.id)}
+                      onChange={() => toggleUser(user.id)}
+                    />
+                  </td>
+                  <td>
+                    <Badge bg="light" text="dark" className="px-1 py-0">#{user.id}</Badge>
+                  </td>
+                  <td><small>{user.username}</small></td>
+                  <td><small>{user.firstname} {user.lastname}</small></td>
+                  <td><small className="text-muted">{user.email}</small></td>
+                  <td>{getRoleBadge(user.role_name)}</td>
+                  <td>{getStatusBadge(user)}</td>
+                  <td>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={() => prepareSingleRoleChange(user)}
+                      className="w-100 py-0"
+                    >
+                      <Gear size={12} />
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+              {filteredUsers.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="text-center py-4">
+                    <People size={32} className="text-muted mb-2" />
+                    <p className="text-muted small mb-0">No se encontraron usuarios</p>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </Table>
+        </Card.Body>
+        <Card.Footer className="bg-white py-1">
+          <small className="text-muted">
+            Mostrando {filteredUsers.length} de {users.length} usuarios
+          </small>
+        </Card.Footer>
+      </Card>
+
+      {/* Modales simplificados */}
+      <Modal show={showModal} onHide={() => !updating && setShowModal(false)} centered size="sm">
+        <Modal.Header closeButton={!updating} className="bg-light py-2">
+          <Modal.Title className="fs-6">
+            <Gear className="me-1 text-primary" size={16} />
+            {selectedUsers.length > 1 ? 'Cambio masivo' : 'Cambiar rol'}
           </Modal.Title>
         </Modal.Header>
-        <Modal.Body>
-          {selectedUsers.length > 1 && (
+        <Modal.Body className="py-2">
+          {selectedUsers.length > 1 ? (
             <>
-              <p>Se cambiará el rol de <strong>{selectedUsers.length}</strong> usuario(s):</p>
-              <div style={{ maxHeight: '150px', overflowY: 'auto' }} className="mb-3 border p-2">
-                <ul className="list-unstyled mb-0">
-                  {selectedUsers.map((user, index) => (
-                    <li key={user.id} className="mb-1">
-                      <small>
-                        {index + 1}. {user.username} - Rol actual: {getRoleBadge(user.currentRole)}
-                      </small>
-                    </li>
-                  ))}
-                </ul>
+              <Alert variant="info" className="py-1 px-2 mb-2 small">
+                {selectedUsers.length} usuarios seleccionados
+              </Alert>
+              <div className="small mb-2" style={{ maxHeight: '100px', overflowY: 'auto' }}>
+                {selectedUsers.map((user, i) => (
+                  <div key={user.id} className="d-flex justify-content-between">
+                    <span>{user.username}</span>
+                    {getRoleBadge(user.currentRole)}
+                  </div>
+                ))}
               </div>
             </>
+          ) : (
+            <div className="text-center mb-2">
+              <small className="text-muted">Usuario: <strong>{selectedUsers[0]?.username}</strong></small>
+            </div>
           )}
-          {selectedUsers.length === 1 && (
-            <p>
-              Usuario: <strong>{selectedUsers[0]?.username}</strong>
-              <br />
-              Rol actual: {getRoleBadge(selectedUsers[0]?.currentRole)}
-            </p>
-          )}
-          <Form.Group>
-            <Form.Label>Nuevo Rol</Form.Label>
-            <Form.Select
-              value={selectedRole}
-              onChange={(e) => setSelectedRole(e.target.value)}
-            >
-              <option value="">Seleccionar...</option>
-              <option value="admin">Administrador</option>
-              <option value="maestro">Maestro</option>
-              <option value="alumno">Alumno</option>
-            </Form.Select>
-          </Form.Group>
+          <Form.Select
+            size="sm"
+            value={selectedRole}
+            onChange={(e) => setSelectedRole(e.target.value)}
+          >
+            <option value="">Nuevo rol...</option>
+            <option value="admin">Admin</option>
+            <option value="maestro">Maestro</option>
+            <option value="alumno">Alumno</option>
+          </Form.Select>
         </Modal.Body>
-        <Modal.Footer>
-          <Button variant="secondary" onClick={() => setShowModal(false)} disabled={updating}>
+        <Modal.Footer className="py-1">
+          <Button size="sm" variant="secondary" onClick={() => setShowModal(false)} disabled={updating}>
             Cancelar
           </Button>
-          <Button 
-            variant="primary" 
-            onClick={handleAssignRole}
-            disabled={!selectedRole || updating}
-          >
-            {updating ? 'Procesando...' : 'Confirmar'}
+          <Button size="sm" variant="primary" onClick={handleAssignRole} disabled={!selectedRole}>
+            <Check2 className="me-1" size={12} /> Confirmar
           </Button>
         </Modal.Footer>
       </Modal>
 
-      {/* Modal de procesamiento */}
-      <Modal 
-        show={showConfirmModal} 
-        onHide={() => {}} 
-        backdrop="static"
-        keyboard={false}
-        size="lg"
-      >
-        <Modal.Header>
-          <Modal.Title>Procesando cambios de rol</Modal.Title>
+      {/* Modal de progreso simplificado */}
+      <Modal show={showConfirmModal} backdrop="static" keyboard={false} centered size="sm">
+        <Modal.Header className="bg-light py-2">
+          <Modal.Title className="fs-6">Procesando...</Modal.Title>
         </Modal.Header>
-        <Modal.Body>
-          <div className="text-center mb-4">
-            {updating ? (
-              <>
-                <div className="mb-3">
-                  <LoadingSpinner />
-                </div>
-                <h5>Procesando: {currentUser}</h5>
-                <p className="text-muted">
-                  Procesados {processedCount} de {totalToProcess}
-                </p>
+        <Modal.Body className="py-2">
+          {updating ? (
+            <>
+              <LoadingSpinner />
+              <div className="text-center small mt-2">
+                <div>{currentUser}</div>
                 <ProgressBar 
                   now={(processedCount / totalToProcess) * 100} 
-                  label={`${Math.round((processedCount / totalToProcess) * 100)}%`}
-                  animated
+                  size="sm"
+                  className="mt-2"
                 />
-              </>
-            ) : (
-              <>
-                <div className="text-success mb-3">
-                  <span style={{ fontSize: '3rem' }}>✓</span>
-                </div>
-                <h5>¡Proceso completado!</h5>
-                <p>Se han actualizado {processedCount} usuarios correctamente</p>
-              </>
-            )}
-          </div>
+              </div>
+            </>
+          ) : (
+            <div className="text-center">
+              <Check2 size={32} className="text-success mb-2" />
+              <p className="small mb-0">{processedCount} usuarios actualizados</p>
+            </div>
+          )}
         </Modal.Body>
         {!updating && (
-          <Modal.Footer>
-            <Button variant="primary" onClick={() => setShowConfirmModal(false)}>
+          <Modal.Footer className="py-1">
+            <Button size="sm" variant="primary" onClick={() => setShowConfirmModal(false)}>
               Cerrar
             </Button>
           </Modal.Footer>

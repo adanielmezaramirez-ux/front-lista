@@ -10,12 +10,13 @@ import {
   Clock, 
   Trash, 
   PersonCheck, 
-  PersonX, 
   Info,
-  Person,
   Envelope,
-  Telephone,
-  Hash
+  Calendar,
+  Plus,
+  Save,
+  X,
+  Person
 } from 'react-bootstrap-icons';
 
 const AdminClasses: React.FC = () => {
@@ -57,9 +58,6 @@ const AdminClasses: React.FC = () => {
         adminService.getClasses(),
         adminService.getUsers()
       ]);
-      
-      console.log('Usuarios cargados:', usersData);
-      console.log('Clases cargadas:', clasesData);
       
       setUsers(usersData);
       setClases(clasesData);
@@ -180,10 +178,8 @@ const AdminClasses: React.FC = () => {
     }
   };
 
-  // Obtener maestros (todos los que tienen rol maestro)
   const getMaestros = () => users.filter(u => u.role === 'maestro');
 
-  // Obtener alumnos disponibles para una clase (excluye los ya inscritos)
   const getAlumnosDisponibles = (clase: Clase | null) => {
     if (!clase) return [];
     const alumnosInscritosIds = new Set(clase.alumnos?.map(a => a.id) || []);
@@ -192,44 +188,46 @@ const AdminClasses: React.FC = () => {
       .filter(alumno => !alumnosInscritosIds.has(alumno.id));
   };
 
-  // Obtener todos los alumnos
   const getAlumnos = () => users.filter(u => u.role === 'alumno');
 
   if (loading) return <LoadingSpinner />;
 
   return (
-    <div>
-      <div className="d-flex justify-content-between align-items-center mb-4">
-        <h2>Gestión de Clases</h2>
-        <Button variant="primary" onClick={() => setShowCreateModal(true)}>
-          <Book className="me-2" /> Nueva Clase
-        </Button>
-      </div>
+    <div className="container-fluid px-0">
+      <Row className="mb-4 align-items-center">
+        <Col>
+          <h2 className="mb-0">Gestión de Clases</h2>
+        </Col>
+        <Col md="auto">
+          <Button variant="primary" onClick={() => setShowCreateModal(true)}>
+            <Book className="me-2" /> Nueva Clase
+          </Button>
+        </Col>
+      </Row>
 
-      {error && <Alert variant="danger" dismissible onClose={() => setError('')}>{error}</Alert>}
+      {error && <Alert variant="danger" onClose={() => setError('')} dismissible>{error}</Alert>}
 
-      {/* Debug info - eliminar en producción */}
-      <div className="mb-3 text-muted small">
-        Total usuarios: {users.length} | Maestros: {getMaestros().length} | Alumnos: {getAlumnos().length}
-      </div>
-
-      <Row>
+      <Row xs={1} md={2} lg={3} className="g-4">
         {clases.map((clase) => {
           const alumnosInscritos = clase.alumnos?.length || 0;
           
           return (
-            <Col md={6} lg={4} key={clase.id}>
-              <Card className="mb-4 h-100">
-                <Card.Header className="bg-primary text-white d-flex justify-content-between align-items-center">
-                  <h5 className="mb-0">{clase.nombre}</h5>
-                  <div>
-                    <Badge bg="light" text="dark" className="me-2">
-                      <People className="me-1" size={12} />
+            <Col key={clase.id}>
+              <Card className="h-100">
+                <Card.Header className="bg-light d-flex justify-content-between align-items-center">
+                  <h6 className="mb-0 d-flex align-items-center">
+                    <Book className="text-primary me-2" size={16} />
+                    {clase.nombre}
+                  </h6>
+                  <div className="d-flex gap-2">
+                    <Badge bg="info" className="px-3 py-2">
+                      <People className="me-2" size={12} />
                       {alumnosInscritos}
                     </Badge>
                     <Button
-                      variant="light"
+                      variant="outline-danger"
                       size="sm"
+                      className="p-1 px-2"
                       onClick={() => {
                         setSelectedClase(clase);
                         setShowEditHorariosModal(true);
@@ -240,101 +238,94 @@ const AdminClasses: React.FC = () => {
                   </div>
                 </Card.Header>
                 <Card.Body>
-                  {/* Horarios */}
                   <div className="mb-3">
-                    <strong className="d-flex align-items-center">
-                      <Clock className="me-2" /> Horarios:
-                    </strong>
-                    <div className="mt-2">
+                    <small className="text-muted d-block mb-2">Horarios:</small>
+                    <div className="d-flex flex-wrap gap-2">
                       {clase.horarios && clase.horarios.length > 0 ? (
                         clase.horarios.map((h, idx) => (
-                          <Badge bg="info" className="me-2 mb-2 p-2" key={idx}>
-                            {getDiaSemanaNombre(h.dia_semana)} {h.hora_inicio.substring(0,5)} - {h.hora_fin.substring(0,5)}
+                          <Badge bg="secondary" className="px-3 py-2" key={idx}>
+                            {getDiaSemanaNombre(h.dia_semana)} {h.hora_inicio.substring(0,5)}-{h.hora_fin.substring(0,5)}
                           </Badge>
                         ))
                       ) : (
-                        <span className="text-muted">Sin horarios definidos</span>
+                        <span className="text-muted small">Sin horarios</span>
                       )}
                     </div>
                   </div>
                   
-                  {/* Maestros */}
                   <div className="mb-3">
-                    <strong>Maestros:</strong>
-                    <div className="mt-1">
+                    <small className="text-muted d-block mb-2">Maestros:</small>
+                    <div className="d-flex flex-wrap gap-2">
                       {clase.maestros && clase.maestros.length > 0 ? (
                         clase.maestros.map((m) => (
-                          <Badge bg="info" className="me-1 mb-1 p-2" key={m.id}>
-                            <Person className="me-1" size={12} />
+                          <Badge bg="info" className="px-3 py-2 d-inline-flex align-items-center" key={m.id}>
+                            <Person className="me-2" size={12} />
                             {m.nombre}
                           </Badge>
                         ))
                       ) : (
-                        <span className="text-muted">Sin maestros</span>
+                        <span className="text-muted small">Sin maestros</span>
                       )}
                     </div>
                   </div>
 
-                  {/* Alumnos Inscritos - Vista previa */}
                   <div className="mb-3">
-                    <strong className="d-flex align-items-center">
-                      <People className="me-2" /> Alumnos Inscritos ({alumnosInscritos}):
-                    </strong>
-                    <div className="mt-2">
-                      {clase.alumnos && clase.alumnos.length > 0 ? (
-                        <ListGroup variant="flush" className="border rounded">
-                          {clase.alumnos.slice(0, 3).map((alumno) => (
-                            <ListGroup.Item key={alumno.id} className="d-flex align-items-center py-2">
-                              <PersonCheck className="text-success me-2" size={14} />
-                              <small>{alumno.nombre}</small>
-                              <Badge bg="success" className="ms-2" pill>Inscrito</Badge>
-                            </ListGroup.Item>
-                          ))}
-                          {clase.alumnos.length > 3 && (
-                            <ListGroup.Item className="text-muted py-2">
-                              <small>Y {clase.alumnos.length - 3} alumno(s) más...</small>
-                            </ListGroup.Item>
-                          )}
-                        </ListGroup>
-                      ) : (
-                        <span className="text-muted">Sin alumnos inscritos</span>
-                      )}
-                    </div>
+                    <small className="text-muted d-block mb-2">Alumnos inscritos:</small>
+                    {clase.alumnos && clase.alumnos.length > 0 ? (
+                      <div className="border rounded bg-light p-2">
+                        {clase.alumnos.slice(0, 2).map((alumno) => (
+                          <div key={alumno.id} className="d-flex align-items-center mb-1">
+                            <PersonCheck className="text-success me-2" size={12} />
+                            <small>{alumno.nombre}</small>
+                          </div>
+                        ))}
+                        {clase.alumnos.length > 2 && (
+                          <div className="text-muted small">
+                            <Info className="me-1" size={12} />
+                            +{clase.alumnos.length - 2} alumnos más
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-muted small">Sin alumnos</span>
+                    )}
                   </div>
 
-                  {/* Botones de acción */}
-                  <div className="d-flex gap-2 flex-wrap mt-3">
+                  <div className="d-flex gap-2 mt-3">
                     <Button
-                      variant="outline-info"
+                      variant="outline-primary"
                       size="sm"
+                      className="flex-fill d-inline-flex align-items-center justify-content-center"
                       onClick={() => {
                         setSelectedClase(clase);
                         setShowViewAlumnosModal(true);
                       }}
                     >
-                      <People /> Ver Alumnos
+                      <People className="me-2" /> Ver
                     </Button>
                     <Button
-                      variant="outline-primary"
+                      variant="outline-success"
                       size="sm"
+                      className="flex-fill d-inline-flex align-items-center justify-content-center"
                       onClick={() => {
                         setSelectedClase(clase);
                         setSelectedMaestros(clase.maestros?.map(m => m.id) || []);
                         setShowAssignMaestrosModal(true);
                       }}
                     >
-                      <PersonPlus /> Asignar Maestros
+                      <PersonPlus className="me-2" /> Maestros
                     </Button>
                     <Button
-                      variant="outline-success"
+                      variant="outline-info"
                       size="sm"
+                      className="flex-fill d-inline-flex align-items-center justify-content-center"
                       onClick={() => {
                         setSelectedClase(clase);
                         setSelectedAlumnos([]);
                         setShowAssignAlumnosModal(true);
                       }}
                     >
-                      <People /> Agregar Alumnos
+                      <People className="me-2" /> Alumnos
                     </Button>
                   </div>
                 </Card.Body>
@@ -344,59 +335,63 @@ const AdminClasses: React.FC = () => {
         })}
       </Row>
 
-      {/* Modal Crear Clase */}
-      <Modal show={showCreateModal} onHide={() => setShowCreateModal(false)} size="lg">
-        <Modal.Header closeButton>
-          <Modal.Title>Crear Nueva Clase</Modal.Title>
+      <Modal show={showCreateModal} onHide={() => setShowCreateModal(false)} size="lg" centered>
+        <Modal.Header closeButton className="bg-light">
+          <Modal.Title className="d-flex align-items-center">
+            <Book className="me-2 text-primary" /> Crear Nueva Clase
+          </Modal.Title>
         </Modal.Header>
         <Modal.Body>
           <Form>
-            <Form.Group className="mb-3">
-              <Form.Label>Nombre de la Clase</Form.Label>
+            <Form.Group className="mb-4">
+              <Form.Label className="fw-bold">Nombre de la clase</Form.Label>
               <Form.Control
                 type="text"
                 value={formData.nombre}
                 onChange={(e) => setFormData({...formData, nombre: e.target.value})}
-                required
+                placeholder="Ej: Matemáticas, Español, etc."
               />
             </Form.Group>
 
-            {/* Sección de Horarios */}
-            <Form.Group className="mb-3">
-              <Form.Label className="d-flex align-items-center">
-                <Clock className="me-2" /> Horarios de la Clase
+            <Form.Group className="mb-4">
+              <Form.Label className="fw-bold d-flex align-items-center">
+                <Clock className="me-2" /> Horarios
               </Form.Label>
               
               <div className="mb-3">
                 {formData.horarios.map((horario, index) => (
                   <div key={index} className="d-flex align-items-center mb-2 p-2 border rounded">
-                    <div className="flex-grow-1">
-                      <Badge bg="secondary" className="me-2">
+                    <div className="flex-grow-1 d-flex align-items-center">
+                      <Badge bg="secondary" className="me-3 px-3 py-2">
                         {getDiaSemanaNombre(horario.dia_semana)}
                       </Badge>
-                      {horario.hora_inicio.substring(0,5)} - {horario.hora_fin.substring(0,5)}
+                      <span className="text-muted">
+                        {horario.hora_inicio.substring(0,5)} - {horario.hora_fin.substring(0,5)}
+                      </span>
                     </div>
                     <Button
                       variant="outline-danger"
                       size="sm"
                       onClick={() => eliminarHorario(index)}
+                      className="d-inline-flex align-items-center"
                     >
-                      <Trash />
+                      <Trash size={14} />
                     </Button>
                   </div>
                 ))}
                 {formData.horarios.length === 0 && (
-                  <div className="text-muted fst-italic mb-2">
+                  <Alert variant="info" className="text-center py-3">
+                    <Clock className="me-2" />
                     No hay horarios agregados
-                  </div>
+                  </Alert>
                 )}
               </div>
 
-              <Card className="bg-light">
+              <Card className="bg-light border-0">
                 <Card.Body>
-                  <h6>Agregar nuevo horario</h6>
-                  <Row>
-                    <Col md={3}>
+                  <h6 className="mb-3">Agregar nuevo horario</h6>
+                  <Row className="g-2">
+                    <Col md={4}>
                       <Form.Select
                         value={nuevoHorario.dia_semana}
                         onChange={(e) => setNuevoHorario({
@@ -431,13 +426,13 @@ const AdminClasses: React.FC = () => {
                         })}
                       />
                     </Col>
-                    <Col md={3}>
+                    <Col md={2}>
                       <Button 
                         variant="success" 
                         onClick={agregarHorario}
-                        className="w-100"
+                        className="w-100 d-inline-flex align-items-center justify-content-center"
                       >
-                        Agregar
+                        <Plus className="me-2" /> Agregar
                       </Button>
                     </Col>
                   </Row>
@@ -445,11 +440,13 @@ const AdminClasses: React.FC = () => {
               </Card>
             </Form.Group>
 
-            <Form.Group className="mb-3">
-              <Form.Label>Maestros</Form.Label>
+            <Form.Group>
+              <Form.Label className="fw-bold d-flex align-items-center">
+                <Person className="me-2" /> Maestros
+              </Form.Label>
               {getMaestros().length === 0 ? (
-                <Alert variant="warning" className="mt-2">
-                  No hay maestros disponibles. Debes crear usuarios con rol de maestro primero.
+                <Alert variant="warning">
+                  No hay maestros disponibles. Crea usuarios con rol de maestro primero.
                 </Alert>
               ) : (
                 <>
@@ -460,7 +457,7 @@ const AdminClasses: React.FC = () => {
                       const selected = Array.from(e.target.selectedOptions, option => Number(option.value));
                       setFormData({...formData, maestrosIds: selected});
                     }}
-                    style={{ minHeight: '150px' }}
+                    style={{ minHeight: '120px' }}
                   >
                     {getMaestros().map((maestro) => (
                       <option key={maestro.id} value={maestro.id}>
@@ -469,84 +466,79 @@ const AdminClasses: React.FC = () => {
                     ))}
                   </Form.Select>
                   <Form.Text className="text-muted">
-                    Mantén presionado Ctrl para seleccionar múltiples maestros
+                    <small>Ctrl + clic para seleccionar múltiples</small>
                   </Form.Text>
                 </>
               )}
             </Form.Group>
           </Form>
         </Modal.Body>
-        <Modal.Footer>
-          <Button variant="secondary" onClick={() => setShowCreateModal(false)}>
-            Cancelar
+        <Modal.Footer className="bg-light">
+          <Button variant="secondary" onClick={() => setShowCreateModal(false)} className="d-inline-flex align-items-center">
+            <X className="me-2" /> Cancelar
           </Button>
           <Button 
             variant="primary" 
             onClick={handleCreateClass}
             disabled={updating || !formData.nombre || formData.horarios.length === 0}
+            className="d-inline-flex align-items-center"
           >
+            <Save className="me-2" />
             {updating ? 'Creando...' : 'Crear Clase'}
           </Button>
         </Modal.Footer>
       </Modal>
 
-      {/* Modal Ver Alumnos Inscritos */}
-      <Modal show={showViewAlumnosModal} onHide={() => setShowViewAlumnosModal(false)} size="lg">
-        <Modal.Header closeButton>
-          <Modal.Title>
-            <People className="me-2" />
-            Alumnos inscritos en {selectedClase?.nombre}
+      <Modal show={showViewAlumnosModal} onHide={() => setShowViewAlumnosModal(false)} size="lg" centered>
+        <Modal.Header closeButton className="bg-light">
+          <Modal.Title className="d-flex align-items-center">
+            <People className="me-2 text-primary" />
+            Alumnos - {selectedClase?.nombre}
           </Modal.Title>
         </Modal.Header>
         <Modal.Body>
           {selectedClase && (
             <>
               {selectedClase.alumnos && selectedClase.alumnos.length > 0 ? (
-                <Table striped bordered hover responsive>
-                  <thead className="bg-light">
-                    <tr>
-                      <th>#</th>
-                      <th>Nombre Completo</th>
-                      <th>Email</th>
-                      <th>Estado</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {selectedClase.alumnos.map((alumno, index) => (
-                      <tr key={alumno.id}>
-                        <td>{index + 1}</td>
-                        <td>
-                          <strong>{alumno.nombre}</strong>
-                        </td>
-                        <td>
-                          <Envelope className="me-1 text-muted" size={12} />
-                          {alumno.email}
-                        </td>
-                        <td>
-                          <Badge bg="success">
-                            <PersonCheck className="me-1" size={12} />
-                            Inscrito
-                          </Badge>
-                        </td>
+                <>
+                  <div className="mb-3">
+                    <Badge bg="info" className="px-3 py-2">
+                      <People className="me-2" />
+                      Total: {selectedClase.alumnos.length} alumnos
+                    </Badge>
+                  </div>
+                  <Table striped hover responsive size="sm">
+                    <thead className="bg-light">
+                      <tr>
+                        <th>#</th>
+                        <th>Nombre</th>
+                        <th>Email</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </Table>
+                    </thead>
+                    <tbody>
+                      {selectedClase.alumnos.map((alumno, index) => (
+                        <tr key={alumno.id}>
+                          <td>{index + 1}</td>
+                          <td className="fw-bold">{alumno.nombre}</td>
+                          <td>
+                            <Envelope className="me-1 text-muted" size={12} />
+                            {alumno.email}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </Table>
+                </>
               ) : (
-                <Alert variant="info">
+                <Alert variant="info" className="text-center py-4">
                   <Info className="me-2" />
                   No hay alumnos inscritos en esta clase
                 </Alert>
               )}
-              <div className="text-muted mt-3">
-                <small>
-                  Total de alumnos inscritos: {selectedClase.alumnos?.length || 0}
-                </small>
-              </div>
             </>
           )}
         </Modal.Body>
-        <Modal.Footer>
+        <Modal.Footer className="bg-light">
           <Button variant="secondary" onClick={() => setShowViewAlumnosModal(false)}>
             Cerrar
           </Button>
@@ -556,143 +548,148 @@ const AdminClasses: React.FC = () => {
               setShowViewAlumnosModal(false);
               setShowAssignAlumnosModal(true);
             }}
+            className="d-inline-flex align-items-center"
           >
-            <People /> Agregar más alumnos
+            <PersonPlus className="me-2" /> Agregar Alumnos
           </Button>
         </Modal.Footer>
       </Modal>
 
-      {/* Modal Editar Horarios */}
-      <Modal show={showEditHorariosModal} onHide={() => setShowEditHorariosModal(false)} size="lg">
-        <Modal.Header closeButton>
-          <Modal.Title>Editar Horarios de {selectedClase?.nombre}</Modal.Title>
+      <Modal show={showEditHorariosModal} onHide={() => setShowEditHorariosModal(false)} size="lg" centered>
+        <Modal.Header closeButton className="bg-light">
+          <Modal.Title className="d-flex align-items-center">
+            <Clock className="me-2 text-primary" />
+            Horarios - {selectedClase?.nombre}
+          </Modal.Title>
         </Modal.Header>
         <Modal.Body>
           {selectedClase && (
             <Form>
-              <Form.Group className="mb-3">
-                <Form.Label className="d-flex align-items-center">
-                  <Clock className="me-2" /> Horarios
-                </Form.Label>
-                
-                {selectedClase.horarios?.map((horario, index) => (
-                  <div key={index} className="d-flex align-items-center mb-2 p-2 border rounded">
-                    <div className="flex-grow-1">
-                      <Form.Select
-                        className="d-inline-block w-auto me-2"
-                        value={horario.dia_semana}
-                        onChange={(e) => {
-                          const nuevosHorarios = [...selectedClase.horarios];
-                          nuevosHorarios[index] = {
-                            ...nuevosHorarios[index],
-                            dia_semana: Number(e.target.value)
-                          };
-                          setSelectedClase({
-                            ...selectedClase,
-                            horarios: nuevosHorarios
-                          });
-                        }}
-                      >
-                        {DIAS_SEMANA.map(dia => (
-                          <option key={dia.value} value={dia.value}>
-                            {dia.label}
-                          </option>
-                        ))}
-                      </Form.Select>
-                      <Form.Control
-                        type="time"
-                        className="d-inline-block w-auto me-2"
-                        value={horario.hora_inicio.substring(0,5)}
-                        onChange={(e) => {
-                          const nuevosHorarios = [...selectedClase.horarios];
-                          nuevosHorarios[index] = {
-                            ...nuevosHorarios[index],
-                            hora_inicio: e.target.value + ':00'
-                          };
-                          setSelectedClase({
-                            ...selectedClase,
-                            horarios: nuevosHorarios
-                          });
-                        }}
-                      />
-                      <Form.Control
-                        type="time"
-                        className="d-inline-block w-auto"
-                        value={horario.hora_fin.substring(0,5)}
-                        onChange={(e) => {
-                          const nuevosHorarios = [...selectedClase.horarios];
-                          nuevosHorarios[index] = {
-                            ...nuevosHorarios[index],
-                            hora_fin: e.target.value + ':00'
-                          };
-                          setSelectedClase({
-                            ...selectedClase,
-                            horarios: nuevosHorarios
-                          });
-                        }}
-                      />
-                    </div>
-                    <Button
-                      variant="outline-danger"
-                      size="sm"
-                      className="ms-2"
-                      onClick={() => {
-                        const nuevosHorarios = selectedClase.horarios.filter((_, i) => i !== index);
-                        setSelectedClase({
-                          ...selectedClase,
-                          horarios: nuevosHorarios
-                        });
-                      }}
-                    >
-                      <Trash />
-                    </Button>
+              {selectedClase.horarios?.map((horario, index) => (
+                <div key={index} className="d-flex align-items-center mb-3 p-3 border rounded bg-light">
+                  <div className="flex-grow-1">
+                    <Row className="g-2">
+                      <Col md={4}>
+                        <Form.Select
+                          value={horario.dia_semana}
+                          onChange={(e) => {
+                            const nuevosHorarios = [...selectedClase.horarios];
+                            nuevosHorarios[index] = {
+                              ...nuevosHorarios[index],
+                              dia_semana: Number(e.target.value)
+                            };
+                            setSelectedClase({
+                              ...selectedClase,
+                              horarios: nuevosHorarios
+                            });
+                          }}
+                        >
+                          {DIAS_SEMANA.map(dia => (
+                            <option key={dia.value} value={dia.value}>
+                              {dia.label}
+                            </option>
+                          ))}
+                        </Form.Select>
+                      </Col>
+                      <Col md={3}>
+                        <Form.Control
+                          type="time"
+                          value={horario.hora_inicio.substring(0,5)}
+                          onChange={(e) => {
+                            const nuevosHorarios = [...selectedClase.horarios];
+                            nuevosHorarios[index] = {
+                              ...nuevosHorarios[index],
+                              hora_inicio: e.target.value + ':00'
+                            };
+                            setSelectedClase({
+                              ...selectedClase,
+                              horarios: nuevosHorarios
+                            });
+                          }}
+                        />
+                      </Col>
+                      <Col md={3}>
+                        <Form.Control
+                          type="time"
+                          value={horario.hora_fin.substring(0,5)}
+                          onChange={(e) => {
+                            const nuevosHorarios = [...selectedClase.horarios];
+                            nuevosHorarios[index] = {
+                              ...nuevosHorarios[index],
+                              hora_fin: e.target.value + ':00'
+                            };
+                            setSelectedClase({
+                              ...selectedClase,
+                              horarios: nuevosHorarios
+                            });
+                          }}
+                        />
+                      </Col>
+                    </Row>
                   </div>
-                ))}
+                  <Button
+                    variant="outline-danger"
+                    size="sm"
+                    className="ms-2 d-inline-flex align-items-center"
+                    onClick={() => {
+                      const nuevosHorarios = selectedClase.horarios.filter((_, i) => i !== index);
+                      setSelectedClase({
+                        ...selectedClase,
+                        horarios: nuevosHorarios
+                      });
+                    }}
+                  >
+                    <Trash size={14} />
+                  </Button>
+                </div>
+              ))}
 
-                <Button
-                  variant="outline-success"
-                  size="sm"
-                  className="mt-2"
-                  onClick={() => {
-                    const nuevosHorarios = [...selectedClase.horarios, {
-                      dia_semana: 1,
-                      hora_inicio: '08:00:00',
-                      hora_fin: '10:00:00'
-                    }];
-                    setSelectedClase({
-                      ...selectedClase,
-                      horarios: nuevosHorarios
-                    });
-                  }}
-                >
-                  + Agregar horario
-                </Button>
-              </Form.Group>
+              <Button
+                variant="outline-success"
+                className="mt-2 d-inline-flex align-items-center"
+                onClick={() => {
+                  const nuevosHorarios = [...selectedClase.horarios, {
+                    dia_semana: 1,
+                    hora_inicio: '08:00:00',
+                    hora_fin: '10:00:00'
+                  }];
+                  setSelectedClase({
+                    ...selectedClase,
+                    horarios: nuevosHorarios
+                  });
+                }}
+              >
+                <Plus className="me-2" /> Agregar horario
+              </Button>
             </Form>
           )}
         </Modal.Body>
-        <Modal.Footer>
-          <Button variant="secondary" onClick={() => setShowEditHorariosModal(false)}>
-            Cancelar
+        <Modal.Footer className="bg-light">
+          <Button variant="secondary" onClick={() => setShowEditHorariosModal(false)} className="d-inline-flex align-items-center">
+            <X className="me-2" /> Cancelar
           </Button>
           <Button 
             variant="primary" 
             onClick={handleUpdateHorarios}
             disabled={updating || !selectedClase?.horarios?.length}
+            className="d-inline-flex align-items-center"
           >
+            <Save className="me-2" />
             {updating ? 'Guardando...' : 'Guardar Cambios'}
           </Button>
         </Modal.Footer>
       </Modal>
 
-      {/* Modal Asignar Maestros */}
-      <Modal show={showAssignMaestrosModal} onHide={() => setShowAssignMaestrosModal(false)} size="lg">
-        <Modal.Header closeButton>
-          <Modal.Title>Asignar Maestros a {selectedClase?.nombre}</Modal.Title>
+      <Modal show={showAssignMaestrosModal} onHide={() => setShowAssignMaestrosModal(false)} size="lg" centered>
+        <Modal.Header closeButton className="bg-light">
+          <Modal.Title className="d-flex align-items-center">
+            <Person className="me-2 text-primary" />
+            Asignar Maestros - {selectedClase?.nombre}
+          </Modal.Title>
         </Modal.Header>
         <Modal.Body>
           <Form.Group>
-            <Form.Label>Seleccionar Maestros</Form.Label>
+            <Form.Label className="fw-bold">Seleccionar maestros</Form.Label>
             {getMaestros().length === 0 ? (
               <Alert variant="warning">No hay maestros disponibles</Alert>
             ) : (
@@ -713,47 +710,52 @@ const AdminClasses: React.FC = () => {
                   ))}
                 </Form.Select>
                 <Form.Text className="text-muted">
-                  Mantén presionado Ctrl para seleccionar múltiples maestros
+                  <small>Ctrl + clic para seleccionar múltiples</small>
                 </Form.Text>
+                <div className="mt-2">
+                  <Badge bg="info" className="px-3 py-2">
+                    Seleccionados: {selectedMaestros.length}
+                  </Badge>
+                </div>
               </>
             )}
           </Form.Group>
         </Modal.Body>
-        <Modal.Footer>
-          <Button variant="secondary" onClick={() => setShowAssignMaestrosModal(false)}>
-            Cancelar
+        <Modal.Footer className="bg-light">
+          <Button variant="secondary" onClick={() => setShowAssignMaestrosModal(false)} className="d-inline-flex align-items-center">
+            <X className="me-2" /> Cancelar
           </Button>
           <Button 
             variant="primary" 
             onClick={handleAssignMaestros}
             disabled={updating || selectedMaestros.length === 0}
+            className="d-inline-flex align-items-center"
           >
-            {updating ? 'Asignando...' : 'Asignar Maestros'}
+            <Save className="me-2" />
+            {updating ? 'Asignando...' : `Asignar (${selectedMaestros.length})`}
           </Button>
         </Modal.Footer>
       </Modal>
 
-      {/* Modal Asignar Alumnos - MEJORADO: excluye alumnos ya inscritos */}
-      <Modal show={showAssignAlumnosModal} onHide={() => setShowAssignAlumnosModal(false)} size="lg">
-        <Modal.Header closeButton>
-          <Modal.Title>
-            <People className="me-2" />
-            Agregar Alumnos a {selectedClase?.nombre}
+      <Modal show={showAssignAlumnosModal} onHide={() => setShowAssignAlumnosModal(false)} size="lg" centered>
+        <Modal.Header closeButton className="bg-light">
+          <Modal.Title className="d-flex align-items-center">
+            <People className="me-2 text-primary" />
+            Agregar Alumnos - {selectedClase?.nombre}
           </Modal.Title>
         </Modal.Header>
         <Modal.Body>
           {selectedClase && (
             <>
-              {/* Mostrar alumnos ya inscritos */}
               {selectedClase.alumnos && selectedClase.alumnos.length > 0 && (
                 <div className="mb-4">
-                  <h6 className="text-success mb-2">
-                    <PersonCheck className="me-2" />
-                    Alumnos ya inscritos ({selectedClase.alumnos.length})
-                  </h6>
-                  <div className="border rounded p-2 bg-light" style={{ maxHeight: '100px', overflowY: 'auto' }}>
+                  <div className="d-flex align-items-center mb-2">
+                    <PersonCheck className="text-success me-2" />
+                    <h6 className="mb-0">Alumnos actuales ({selectedClase.alumnos.length})</h6>
+                  </div>
+                  <div className="border rounded p-2 bg-light" style={{ maxHeight: '80px', overflowY: 'auto' }}>
                     {selectedClase.alumnos.map(alumno => (
-                      <Badge bg="success" className="me-2 mb-2 p-2" key={alumno.id}>
+                      <Badge bg="success" className="me-2 mb-1 px-3 py-2" key={alumno.id}>
                         {alumno.nombre}
                       </Badge>
                     ))}
@@ -761,16 +763,15 @@ const AdminClasses: React.FC = () => {
                 </div>
               )}
 
-              {/* Seleccionar nuevos alumnos */}
               <Form.Group>
-                <Form.Label className="text-primary">
-                  <PersonPlus className="me-2" />
-                  Seleccionar nuevos alumnos para agregar
-                </Form.Label>
+                <div className="d-flex align-items-center mb-2">
+                  <PersonPlus className="text-primary me-2" />
+                  <Form.Label className="fw-bold mb-0">Alumnos disponibles</Form.Label>
+                </div>
                 {getAlumnosDisponibles(selectedClase).length === 0 ? (
                   <Alert variant="info">
                     <Info className="me-2" />
-                    No hay alumnos disponibles para agregar. Todos los alumnos ya están inscritos en esta clase.
+                    No hay alumnos disponibles para agregar
                   </Alert>
                 ) : (
                   <>
@@ -781,7 +782,7 @@ const AdminClasses: React.FC = () => {
                         const selected = Array.from(e.target.selectedOptions, option => Number(option.value));
                         setSelectedAlumnos(selected);
                       }}
-                      style={{ minHeight: '250px' }}
+                      style={{ minHeight: '200px' }}
                     >
                       {getAlumnosDisponibles(selectedClase).map((alumno) => (
                         <option key={alumno.id} value={alumno.id}>
@@ -789,13 +790,18 @@ const AdminClasses: React.FC = () => {
                         </option>
                       ))}
                     </Form.Select>
-                    <Form.Text className="text-muted">
-                      Mantén presionado Ctrl para seleccionar múltiples alumnos
+                    <Form.Text className="text-muted d-block mb-2">
+                      <small>Ctrl + clic para seleccionar múltiples</small>
                     </Form.Text>
-                    <div className="mt-2 text-info">
-                      <small>
-                        Alumnos disponibles para agregar: {getAlumnosDisponibles(selectedClase).length}
-                      </small>
+                    <div className="d-flex gap-2">
+                      <Badge bg="info" className="px-3 py-2">
+                        Disponibles: {getAlumnosDisponibles(selectedClase).length}
+                      </Badge>
+                      {selectedAlumnos.length > 0 && (
+                        <Badge bg="success" className="px-3 py-2">
+                          Seleccionados: {selectedAlumnos.length}
+                        </Badge>
+                      )}
                     </div>
                   </>
                 )}
@@ -803,16 +809,18 @@ const AdminClasses: React.FC = () => {
             </>
           )}
         </Modal.Body>
-        <Modal.Footer>
-          <Button variant="secondary" onClick={() => setShowAssignAlumnosModal(false)}>
-            Cancelar
+        <Modal.Footer className="bg-light">
+          <Button variant="secondary" onClick={() => setShowAssignAlumnosModal(false)} className="d-inline-flex align-items-center">
+            <X className="me-2" /> Cancelar
           </Button>
           <Button 
             variant="success" 
             onClick={handleAssignAlumnos}
             disabled={updating || selectedAlumnos.length === 0}
+            className="d-inline-flex align-items-center"
           >
-            {updating ? 'Asignando...' : `Agregar ${selectedAlumnos.length} Alumno(s)`}
+            <Save className="me-2" />
+            {updating ? 'Agregando...' : `Agregar (${selectedAlumnos.length})`}
           </Button>
         </Modal.Footer>
       </Modal>

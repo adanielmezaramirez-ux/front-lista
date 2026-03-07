@@ -1,5 +1,5 @@
 import React from 'react';
-import { Nav } from 'react-bootstrap';
+import { Nav, Image } from 'react-bootstrap';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { 
@@ -19,13 +19,20 @@ const Sidebar: React.FC = () => {
   return (
     <div className="sidebar text-white p-3">
       <div className="text-center mb-4">
-        <h4>Listas Hanxue</h4>
-        <small className="text-white-50">{user?.firstname} {user?.lastname}</small>
-        <div className="mt-2">
-          <span className="badge bg-info">
-            {isAdmin ? 'Administrador' : isMaestro ? 'Maestro' : 'Usuario'}
-          </span>
+        <div className="mb-3">
+          <Image 
+            src="/vite.svg" 
+            alt="Logo" 
+            width="60" 
+            height="60"
+            className="bg-white p-2 rounded-circle"
+          />
         </div>
+        <h5 className="mb-1">{user?.firstname} {user?.lastname}</h5>
+        <small className="text-white-50 d-block mb-2">@{user?.username}</small>
+        <span className="badge bg-info">
+          {isAdmin ? 'Administrador' : isMaestro ? 'Maestro' : 'Usuario'}
+        </span>
       </div>
 
       <Nav className="flex-column">
@@ -90,10 +97,16 @@ const Sidebar: React.FC = () => {
           <PersonBadge className="me-2" /> Perfil
         </Nav.Link>
 
-        <Nav.Link onClick={logout} className="text-danger">
+        <Nav.Link onClick={logout} className="text-danger mt-3">
           <DoorOpen className="me-2" /> Salir
         </Nav.Link>
       </Nav>
+
+      <div className="text-center mt-4 pt-3 border-top border-white-50">
+        <small className="text-white-50">
+          © 2026 Hanxue School
+        </small>
+      </div>
     </div>
   );
 };

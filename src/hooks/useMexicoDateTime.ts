@@ -1,3 +1,4 @@
+// src/hooks/useMexicoDateTime.ts
 import { useState, useEffect } from 'react';
 import { Horario } from '../interfaces';
 
@@ -5,10 +6,10 @@ export const useMexicoDateTime = () => {
   const [mexicoTime, setMexicoTime] = useState<Date>(new Date());
 
   useEffect(() => {
-    // Actualizar cada minuto
+    // Actualizar cada minuto para mantener la hora precisa
     const interval = setInterval(() => {
       setMexicoTime(new Date());
-    }, 60000);
+    }, 60000); // Cada minuto
 
     return () => clearInterval(interval);
   }, []);
@@ -38,7 +39,10 @@ export const useMexicoDateTime = () => {
   // Obtener hora actual en México (formato HH:MM:SS)
   const getHoraActual = (): string => {
     const mexicoDate = getMexicoDate();
-    return mexicoDate.toTimeString().split(' ')[0];
+    const horas = mexicoDate.getHours().toString().padStart(2, '0');
+    const minutos = mexicoDate.getMinutes().toString().padStart(2, '0');
+    const segundos = mexicoDate.getSeconds().toString().padStart(2, '0');
+    return `${horas}:${minutos}:${segundos}`;
   };
 
   // Verificar si hoy es día de clase según los horarios
@@ -49,37 +53,69 @@ export const useMexicoDateTime = () => {
     return horarios.some(h => h.dia_semana === diaActual);
   };
 
-  // Verificar si está dentro del horario de clase actual
-  const estaEnHorario = (horarios: Horario[]): boolean => {
-    if (!horarios || horarios.length === 0) return false;
+  // Obtener el horario específico de hoy si existe
+  const getHorarioHoy = (horarios: Horario[]): Horario | null => {
+    if (!horarios || horarios.length === 0) return null;
     
     const diaActual = getDiaSemanaActual();
-    const horaActual = getHoraActual();
+    return horarios.find(h => h.dia_semana === diaActual) || null;
+  };
+
+  // Verificar si la hora actual está dentro del horario de clase
+  const estaEnHorario = (horario: Horario | null): boolean => {
+    if (!horario) return false;
     
-    const horarioHoy = horarios.find(h => h.dia_semana === diaActual);
+    const horaActual = getHoraActual();
+    return horaActual >= horario.hora_inicio && horaActual <= horario.hora_fin;
+  };
+
+  // Verificar si se puede marcar asistencia ahora (día correcto Y hora correcta)
+  const puedeMarcarAsistencia = (clase: { horarios: Horario[] }): boolean => {
+    const horarioHoy = getHorarioHoy(clase.horarios);
     if (!horarioHoy) return false;
     
-    return horaActual >= horarioHoy.hora_inicio && horaActual <= horarioHoy.hora_fin;
+    return estaEnHorario(horarioHoy);
   };
 
-  // Verificar si se puede marcar asistencia ahora
-  const puedeMarcarAsistencia = (clase: { horarios: Horario[] }): boolean => {
-    return getHorarioHoy(clase.horarios) !== null;
-  };
-
-  // Obtener el horario de hoy si existe
-  const getHorarioHoy = (horarios: Horario[]): Horario | null => {
-    const diaActual = getDiaSemanaActual();
-    const horaActual = getHoraActual();
+  // Obtener el estado actual de la clase (para mostrar mensajes)
+  const getEstadoClase = (clase: { horarios: Horario[] }): {
+    puedeMarcar: boolean;
+    mensaje: string;
+    horarioHoy: Horario | null;
+  } => {
+    const horarioHoy = getHorarioHoy(clase.horarios);
     
-    // Buscar el horario que corresponde al día y hora actual
-    return horarios.find(h => 
-      h.dia_semana === diaActual && 
-      horaActual >= h.hora_inicio && 
-      horaActual <= h.hora_fin
-    ) || null;
-  };
+    if (!horarioHoy) {
+      return {
+        puedeMarcar: false,
+        mensaje: 'Hoy no hay clase programada',
+        horarioHoy: null
+      };
+    }
 
+    const horaActual = getHoraActual();
+    const enHorario = horaActual >= horarioHoy.hora_inicio && horaActual <= horarioHoy.hora_fin;
+
+    if (enHorario) {
+      return {
+        puedeMarcar: true,
+        mensaje: 'Clase en curso - Puedes marcar asistencia',
+        horarioHoy
+      };
+    } else if (horaActual < horarioHoy.hora_inicio) {
+      return {
+        puedeMarcar: false,
+        mensaje: `La clase comenzará a las ${horarioHoy.hora_inicio.substring(0,5)}`,
+        horarioHoy
+      };
+    } else {
+      return {
+        puedeMarcar: false,
+        mensaje: `La clase terminó a las ${horarioHoy.hora_fin.substring(0,5)}`,
+        horarioHoy
+      };
+    }
+  };
 
   return {
     getMexicoDate,
@@ -90,6 +126,7 @@ export const useMexicoDateTime = () => {
     estaEnHorario,
     puedeMarcarAsistencia,
     getHorarioHoy,
+    getEstadoClase,
     mexicoTime
   };
 };

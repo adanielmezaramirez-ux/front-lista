@@ -2,10 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { Row, Col, Card, Button, Badge, Alert, Spinner } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 import { classService } from '../../services/classService';
-import { Clase, getDiaSemanaNombre, formatearHorarios } from '../../interfaces';
+import { Clase, getDiaSemanaNombre } from '../../interfaces';
 import { useMexicoDateTime } from '../../hooks/useMexicoDateTime';
 import LoadingSpinner from '../../components/LoadingSpinner';
-import { People, CalendarCheck, Clock, Calendar, CheckCircle, XCircle } from 'react-bootstrap-icons';
+import { People, Clock, Calendar, CheckCircle, XCircle, InfoCircle } from 'react-bootstrap-icons';
 
 const MaestroClases: React.FC = () => {
   const [clases, setClases] = useState<Clase[]>([]);
@@ -66,29 +66,41 @@ const MaestroClases: React.FC = () => {
   if (loading) return <LoadingSpinner />;
 
   return (
-    <div>
-      <div className="d-flex justify-content-between align-items-center mb-4">
-        <div>
-          <h2 className="mb-1">Mis Clases</h2>
-          <p className="text-muted">
-            <Clock className="me-1" />
-            Hora México: {mexicoTime.toLocaleString('es-MX', { timeZone: 'America/Mexico_City' })}
-          </p>
-        </div>
-        {cargandoEstadisticas && (
-          <div className="d-flex align-items-center">
-            <Spinner size="sm" animation="border" className="me-2" />
-            <span>Actualizando estadísticas...</span>
+    <div className="container-fluid px-0">
+      <Row className="mb-4 align-items-center">
+        <Col>
+          <h2 className="mb-2">Mis Clases</h2>
+          <div className="d-flex align-items-center text-muted">
+            <Clock className="me-2" />
+            <span>Hora México: {mexicoTime.toLocaleString('es-MX', { 
+              timeZone: 'America/Mexico_City',
+              hour: '2-digit',
+              minute: '2-digit'
+            })}</span>
           </div>
+        </Col>
+        {cargandoEstadisticas && (
+          <Col md="auto">
+            <div className="d-flex align-items-center text-primary">
+              <Spinner size="sm" animation="border" className="me-2" />
+              <span>Actualizando...</span>
+            </div>
+          </Col>
         )}
-      </div>
+      </Row>
 
       {error && <Alert variant="danger">{error}</Alert>}
 
       {clases.length === 0 ? (
-        <Alert variant="info">No tienes clases asignadas</Alert>
+        <Card className="text-center py-5">
+          <Card.Body>
+            <InfoCircle className="text-muted mb-3" size={48} />
+            <h5>No tienes clases asignadas</h5>
+            <p className="text-muted">Contacta al administrador para asignarte clases</p>
+          </Card.Body>
+        </Card>
       ) : (
-        <Row>
+        <Row xs={1} md={2} lg={3} className="g-4">
           {clases.map((clase) => {
             const stats = estadisticas.get(clase.id) || {
               asistenciasHoy: 0,
@@ -99,79 +111,93 @@ const MaestroClases: React.FC = () => {
             };
 
             return (
-              <Col md={6} lg={4} key={clase.id}>
-                <Card className={`mb-4 h-100 ${stats.puedeMarcar ? 'border-primary' : ''}`}>
-                  <Card.Header className={`${stats.puedeMarcar ? 'bg-primary' : 'bg-secondary'} text-white d-flex justify-content-between align-items-center`}>
-                    <h5 className="mb-0">{clase.nombre}</h5>
+              <Col key={clase.id}>
+                <Card className={`h-100 ${stats.puedeMarcar ? 'border-primary' : ''}`}>
+                  <Card.Header className={`${stats.puedeMarcar ? 'bg-primary' : 'bg-light'} d-flex justify-content-between align-items-center`}>
+                    <h6 className={`mb-0 ${stats.puedeMarcar ? 'text-white' : ''}`}>
+                      {clase.nombre}
+                    </h6>
                     {stats.puedeMarcar && (
-                      <Badge bg="light" text="dark" className="ms-2">
-                        <Clock className="me-1" size={12} />
-                        Ahora
+                      <Badge bg="light" text="dark" className="px-3 py-2">
+                        <Clock className="me-2" size={12} />
+                        En horario
                       </Badge>
                     )}
                   </Card.Header>
                   
                   <Card.Body>
-                    {/* Horarios */}
                     <div className="mb-3">
-                      <div className="d-flex align-items-center mb-2">
-                        <Clock className="text-primary me-2" />
+                      <div className="d-flex align-items-start">
+                        <Clock className="text-primary me-2 mt-1" />
                         <div>
-                          {clase.horarios && clase.horarios.length > 0 ? (
-                            clase.horarios.map((h, idx) => (
-                              <Badge 
-                                key={idx} 
-                                bg={h.dia_semana === stats.horarioHoy?.dia_semana ? 'success' : 'secondary'}
-                                className="me-1 mb-1"
-                              >
-                                {getDiaSemanaNombre(h.dia_semana)} {h.hora_inicio.substring(0,5)}-{h.hora_fin.substring(0,5)}
-                              </Badge>
-                            ))
-                          ) : (
-                            <span>Sin horarios</span>
-                          )}
+                          <small className="text-muted d-block mb-2">Horarios:</small>
+                          <div className="d-flex flex-wrap gap-2">
+                            {clase.horarios && clase.horarios.length > 0 ? (
+                              clase.horarios.map((h, idx) => (
+                                <Badge 
+                                  key={idx} 
+                                  bg={h.dia_semana === stats.horarioHoy?.dia_semana ? 'success' : 'secondary'}
+                                  className="px-3 py-2"
+                                >
+                                  {getDiaSemanaNombre(h.dia_semana)} {h.hora_inicio.substring(0,5)}-{h.hora_fin.substring(0,5)}
+                                </Badge>
+                              ))
+                            ) : (
+                              <span className="text-muted">Sin horarios definidos</span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
 
-                    {/* Estadísticas rápidas */}
-                    <div className="bg-light p-3 rounded mb-3">
+                    <div className="bg-light p-3 rounded">
                       <div className="d-flex justify-content-between align-items-center mb-2">
-                        <span>
-                          <People className="me-1" />
-                          Alumnos:
+                        <span className="d-flex align-items-center">
+                          <People className="me-2" />
+                          Alumnos inscritos:
                         </span>
-                        <strong>{stats.totalAlumnos}</strong>
+                        <Badge bg="info" className="px-3 py-2">
+                          {stats.totalAlumnos}
+                        </Badge>
                       </div>
                       
                       {stats.puedeMarcar ? (
                         <div className="d-flex justify-content-between align-items-center">
-                          <span>
-                            <CheckCircle className="me-1 text-success" />
+                          <span className="d-flex align-items-center text-success">
+                            <CheckCircle className="me-2" />
                             Asistencia hoy:
                           </span>
-                          <strong>
-                            {stats.asistenciasHoy}/{stats.totalAlumnos}
+                          <div className="d-flex align-items-center gap-2">
+                            <strong>{stats.asistenciasHoy}/{stats.totalAlumnos}</strong>
                             {stats.totalAlumnos > 0 && (
                               <Badge 
                                 bg={stats.porcentajeHoy >= 80 ? 'success' : stats.porcentajeHoy >= 60 ? 'warning' : 'danger'}
-                                className="ms-2"
+                                className="px-3 py-2"
                               >
                                 {stats.porcentajeHoy}%
                               </Badge>
                             )}
-                          </strong>
+                          </div>
                         </div>
                       ) : (
-                        <div className="d-flex justify-content-between align-items-center text-muted">
-                          <span>
-                            <XCircle className="me-1" />
-                            No es horario de clase
-                          </span>
+                        <div>
+                          <div className="d-flex justify-content-between align-items-center text-muted mb-2">
+                            <span className="d-flex align-items-center">
+                              <XCircle className="me-2" />
+                              Estado:
+                            </span>
+                            <span>Fuera de horario</span>
+                          </div>
                           {stats.horarioHoy && (
-                            <small>
-                              Próximo: {getDiaSemanaNombre(stats.horarioHoy.dia_semana)} {stats.horarioHoy.hora_inicio.substring(0,5)}
-                            </small>
+                            <div className="d-flex justify-content-between align-items-center text-muted small">
+                              <span className="d-flex align-items-center">
+                                <Clock className="me-2" />
+                                Próxima clase:
+                              </span>
+                              <span>
+                                {getDiaSemanaNombre(stats.horarioHoy.dia_semana)} {stats.horarioHoy.hora_inicio.substring(0,5)}
+                              </span>
+                            </div>
                           )}
                         </div>
                       )}
@@ -179,25 +205,20 @@ const MaestroClases: React.FC = () => {
                   </Card.Body>
 
                   <Card.Footer className="bg-white">
-                    <div className="d-grid gap-2">
-                      <Button
-                        as={Link as any}
-                        to={`/maestro/clases/${clase.id}`}
-                        variant="outline-primary"
-                        size="sm"
-                      >
-                        <Calendar className="me-2" /> Ver Detalle
-                      </Button>
-                      <Button
-                        as={Link as any}
-                        to={`/maestro/asistencias/${clase.id}`}
-                        variant={stats.puedeMarcar ? 'success' : 'outline-success'}
-                        size="sm"
-                      >
-                        <CheckCircle className="me-2" /> 
-                        {stats.puedeMarcar ? 'Marcar Asistencia' : 'Gestionar Asistencias'}
-                      </Button>
-                    </div>
+                    <Row className="g-2">
+                      <Col xs={12}>
+                        <Button
+                          as={Link as any}
+                          to={`/maestro/asistencias/${clase.id}`}
+                          variant={stats.puedeMarcar ? 'success' : 'outline-success'}
+                          size="sm"
+                          className="w-100 d-inline-flex align-items-center justify-content-center"
+                        >
+                          <CheckCircle className="me-2" /> 
+                          {stats.puedeMarcar ? 'Asistencia' : 'Ver asistencias'}
+                        </Button>
+                      </Col>
+                    </Row>
                   </Card.Footer>
                 </Card>
               </Col>
