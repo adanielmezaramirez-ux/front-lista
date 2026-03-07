@@ -16,7 +16,8 @@ export const classService = {
     claseId: number; 
     alumnoId: number; 
     fecha: string; 
-    presente: boolean 
+    presente: boolean;
+    horarioId?: number; // Nuevo campo opcional
   }): Promise<any> => {
     const response = await api.post('/classes/asistencia', data);
     return response.data;

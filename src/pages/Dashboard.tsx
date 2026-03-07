@@ -2,8 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { Row, Col, Card } from 'react-bootstrap';
 import { useAuth } from '../contexts/AuthContext';
 import { usersService } from '../services/usersService';
+import { classService } from '../services/classService';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { Book, People, CalendarCheck } from 'react-bootstrap-icons';
+import { Book, People, CalendarCheck, Clock } from 'react-bootstrap-icons';
+import { getDiaSemanaNombre } from '../interfaces';
+import { useMexicoDateTime } from '../hooks/useMexicoDateTime';
 
 interface DashboardData {
   totalClases?: number;
@@ -16,12 +19,20 @@ const Dashboard: React.FC = () => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<DashboardData>({});
+  const { mexicoTime, getDiaSemanaActual } = useMexicoDateTime();
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         const userData = await usersService.getUserData();
-        setData(userData);
+        
+        // Si es maestro, obtener clases con sus horarios
+        if (user?.role === 'maestro') {
+          const clases = await classService.getMisClases();
+          setData({ ...userData, clases });
+        } else {
+          setData(userData);
+        }
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
       } finally {
@@ -30,13 +41,27 @@ const Dashboard: React.FC = () => {
     };
 
     fetchData();
-  }, []);
+  }, [user]);
 
   if (loading) return <LoadingSpinner />;
 
   return (
     <div>
-      <h2 className="mb-4">Dashboard</h2>
+      <div className="d-flex justify-content-between align-items-center mb-4">
+        <h2>Dashboard</h2>
+        <div className="text-muted">
+          <Clock className="me-1" />
+          {mexicoTime.toLocaleString('es-MX', { 
+            timeZone: 'America/Mexico_City',
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          })}
+        </div>
+      </div>
       
       <Row className="mb-4">
         <Col md={4}>
@@ -74,26 +99,39 @@ const Dashboard: React.FC = () => {
         <>
           <h4 className="mb-3">Mis Clases</h4>
           <Row>
-            {data.clases.map((clase: any) => (
-              <Col md={4} key={clase.id}>
-                <Card className="mb-3">
-                  <Card.Body>
-                    <Card.Title>{clase.nombre}</Card.Title>
-                    <Card.Text>
-                      <small className="text-muted d-block">
-                        Horario: {clase.horario || 'No especificado'}
-                      </small>
-                      <small className="text-muted d-block">
-                        Días: {clase.dias || 'No especificado'}
-                      </small>
-                      <strong className="d-block mt-2">
-                        Alumnos: {clase.total_alumnos || 0}
-                      </strong>
-                    </Card.Text>
-                  </Card.Body>
-                </Card>
-              </Col>
-            ))}
+            {data.clases.map((clase: any) => {
+              const diaActual = getDiaSemanaActual();
+              const horarioHoy = clase.horarios?.find((h: any) => h.dia_semana === diaActual);
+              
+              return (
+                <Col md={4} key={clase.id}>
+                  <Card className={`mb-3 ${horarioHoy ? 'border-success' : ''}`}>
+                    <Card.Body>
+                      <Card.Title>{clase.nombre}</Card.Title>
+                      <Card.Text>
+                        <small className="text-muted d-block">
+                          <Clock className="me-1" size={12} />
+                          Horarios:
+                        </small>
+                        {clase.horarios?.map((h: any, idx: number) => (
+                          <small key={idx} className="d-block ms-3">
+                            {getDiaSemanaNombre(h.dia_semana)} {h.hora_inicio.substring(0,5)} - {h.hora_fin.substring(0,5)}
+                          </small>
+                        ))}
+                        <strong className="d-block mt-2">
+                          Alumnos: {clase.total_alumnos || 0}
+                        </strong>
+                        {horarioHoy && (
+                          <Badge bg="success" className="mt-2">
+                            Clase hoy: {horarioHoy.hora_inicio.substring(0,5)} - {horarioHoy.hora_fin.substring(0,5)}
+                          </Badge>
+                        )}
+                      </Card.Text>
+                    </Card.Body>
+                  </Card>
+                </Col>
+              );
+            })}
           </Row>
         </>
       )}

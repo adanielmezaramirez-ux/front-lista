@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Row, Col, Card, Button, Alert, Badge, Form, InputGroup } from 'react-bootstrap';
 import { classService } from '../../services/classService';
-import { Clase } from '../../interfaces';
+import { Clase, getDiaSemanaNombre } from '../../interfaces';
 import { useMexicoDateTime } from '../../hooks/useMexicoDateTime';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import { 
@@ -11,7 +11,6 @@ import {
   Clock, 
   People, 
   Calendar,
-  ArrowLeft,
   Filter
 } from 'react-bootstrap-icons';
 
@@ -22,17 +21,17 @@ const SelectorAsistencias: React.FC = () => {
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [estadisticas, setEstadisticas] = useState<Map<number, any>>(new Map());
-  const [filtroDia, setFiltroDia] = useState<string>('todos');
+  const [filtroDia, setFiltroDia] = useState<number>(-1);
   
   const navigate = useNavigate();
-  const { getMexicoDateString, mexicoTime } = useMexicoDateTime();
+  const { getMexicoDateString, mexicoTime, getDiaSemanaActual } = useMexicoDateTime();
 
   useEffect(() => {
     fetchClases();
   }, []);
 
   useEffect(() => {
-    // Filtrar clases por búsqueda
+    // Filtrar clases por búsqueda y día
     let filtered = clases;
     
     if (searchTerm) {
@@ -41,9 +40,9 @@ const SelectorAsistencias: React.FC = () => {
       );
     }
 
-    if (filtroDia !== 'todos') {
+    if (filtroDia !== -1) {
       filtered = filtered.filter(clase => 
-        clase.dias?.toLowerCase().includes(filtroDia.toLowerCase())
+        clase.horarios.some(h => h.dia_semana === filtroDia)
       );
     }
 
@@ -77,19 +76,10 @@ const SelectorAsistencias: React.FC = () => {
         const asistenciasHoy = await classService.getAsistencias(clase.id, fechaHoy);
         const presentesHoy = asistenciasHoy.filter(a => a.presente).length;
         
-        // Obtener últimas 5 asistencias para estadísticas
-        const historial = await classService.getAsistencias(clase.id);
-        const asistenciasRecientes = historial.slice(-5);
-        const promedioReciente = asistenciasRecientes.length > 0
-          ? Math.round((asistenciasRecientes.filter(a => a.presente).length / asistenciasRecientes.length) * 100)
-          : 0;
-
         stats.set(clase.id, {
           asistenciasHoy: presentesHoy,
           totalAlumnos: clase.total_alumnos || 0,
-          porcentajeHoy: clase.total_alumnos ? Math.round((presentesHoy / clase.total_alumnos) * 100) : 0,
-          promedioReciente,
-          ultimaAsistencia: historial.length > 0 ? historial[historial.length - 1].fecha : null
+          porcentajeHoy: clase.total_alumnos ? Math.round((presentesHoy / clase.total_alumnos) * 100) : 0
         });
       } catch (error) {
         console.error(`Error cargando estadísticas para clase ${clase.id}:`, error);
@@ -99,21 +89,19 @@ const SelectorAsistencias: React.FC = () => {
     setEstadisticas(stats);
   };
 
-  const getDiasUnicos = (): string[] => {
-    const diasSet = new Set<string>();
+  // Obtener días únicos de todas las clases
+  const diasUnicos = () => {
+    const diasSet = new Set<number>();
     clases.forEach(clase => {
-      if (clase.dias) {
-        clase.dias.split(',').map(d => d.trim()).forEach(dia => diasSet.add(dia));
-      }
+      clase.horarios.forEach(h => diasSet.add(h.dia_semana));
     });
-    return Array.from(diasSet);
+    return Array.from(diasSet).sort((a, b) => a - b);
   };
 
   if (loading) return <LoadingSpinner />;
 
   return (
     <div>
-
       <div className="d-flex justify-content-between align-items-center mb-4">
         <div>
           <h2 className="mb-1">Gestionar Asistencias</h2>
@@ -155,11 +143,11 @@ const SelectorAsistencias: React.FC = () => {
                 </InputGroup.Text>
                 <Form.Select
                   value={filtroDia}
-                  onChange={(e) => setFiltroDia(e.target.value)}
+                  onChange={(e) => setFiltroDia(Number(e.target.value))}
                 >
-                  <option value="todos">Todos los días</option>
-                  {getDiasUnicos().map(dia => (
-                    <option key={dia} value={dia}>{dia}</option>
+                  <option value="-1">Todos los días</option>
+                  {diasUnicos().map(dia => (
+                    <option key={dia} value={dia}>{getDiaSemanaNombre(dia)}</option>
                   ))}
                 </Form.Select>
               </InputGroup>
@@ -170,7 +158,7 @@ const SelectorAsistencias: React.FC = () => {
 
       {filteredClases.length === 0 ? (
         <Alert variant="info">
-          {searchTerm || filtroDia !== 'todos' 
+          {searchTerm || filtroDia !== -1 
             ? 'No hay clases que coincidan con los filtros' 
             : 'No tienes clases asignadas'}
         </Alert>
@@ -180,36 +168,35 @@ const SelectorAsistencias: React.FC = () => {
             const stats = estadisticas.get(clase.id) || {
               asistenciasHoy: 0,
               totalAlumnos: 0,
-              porcentajeHoy: 0,
-              promedioReciente: 0
+              porcentajeHoy: 0
             };
+
+            // Verificar si hoy es día de clase
+            const diaActual = getDiaSemanaActual();
+            const esDiaClaseHoy = clase.horarios.some(h => h.dia_semana === diaActual);
 
             return (
               <Col md={6} lg={4} key={clase.id}>
-                <Card className="mb-4 h-100">
-                  <Card.Header className="bg-primary text-white">
+                <Card className={`mb-4 h-100 ${esDiaClaseHoy ? 'border-success' : ''}`}>
+                  <Card.Header className={`${esDiaClaseHoy ? 'bg-success' : 'bg-primary'} text-white`}>
                     <h5 className="mb-0">{clase.nombre}</h5>
                   </Card.Header>
                   
                   <Card.Body>
-                    {/* Información básica */}
+                    {/* Horarios */}
                     <div className="mb-3">
                       <div className="d-flex align-items-center mb-2">
                         <Clock className="text-secondary me-2" size={16} />
-                        <span>{clase.horario || 'Horario no especificado'}</span>
-                      </div>
-                      <div className="d-flex align-items-center">
-                        <Calendar className="text-secondary me-2" size={16} />
                         <div>
-                          {clase.dias ? (
-                            clase.dias.split(',').map((dia, idx) => (
-                              <Badge key={idx} bg="secondary" className="me-1">
-                                {dia.trim()}
-                              </Badge>
-                            ))
-                          ) : (
-                            <span className="text-muted">Días no especificados</span>
-                          )}
+                          {clase.horarios.map((h, idx) => (
+                            <Badge 
+                              key={idx} 
+                              bg={h.dia_semana === diaActual ? 'success' : 'secondary'}
+                              className="me-1 mb-1"
+                            >
+                              {getDiaSemanaNombre(h.dia_semana)} {h.hora_inicio.substring(0,5)}-{h.hora_fin.substring(0,5)}
+                            </Badge>
+                          ))}
                         </div>
                       </div>
                     </div>
@@ -224,45 +211,26 @@ const SelectorAsistencias: React.FC = () => {
                         <strong>{stats.totalAlumnos}</strong>
                       </div>
                       
-                      <div className="d-flex justify-content-between align-items-center mb-2">
-                        <span>
-                          <CalendarCheck className="me-1" />
-                          Asistencia hoy:
-                        </span>
-                        <strong>
-                          {stats.asistenciasHoy}/{stats.totalAlumnos}
-                          {stats.totalAlumnos > 0 && (
-                            <Badge 
-                              bg={stats.porcentajeHoy >= 80 ? 'success' : stats.porcentajeHoy >= 60 ? 'warning' : 'danger'}
-                              className="ms-2"
-                            >
-                              {stats.porcentajeHoy}%
-                            </Badge>
-                          )}
-                        </strong>
-                      </div>
-
-                      {stats.promedioReciente > 0 && (
+                      {esDiaClaseHoy && (
                         <div className="d-flex justify-content-between align-items-center">
-                          <span className="text-muted">
-                            Promedio reciente:
+                          <span>
+                            <CalendarCheck className="me-1" />
+                            Asistencia hoy:
                           </span>
-                          <small>
-                            <Badge bg={stats.promedioReciente >= 80 ? 'success' : stats.promedioReciente >= 60 ? 'warning' : 'danger'}>
-                              {stats.promedioReciente}%
-                            </Badge>
-                          </small>
+                          <strong>
+                            {stats.asistenciasHoy}/{stats.totalAlumnos}
+                            {stats.totalAlumnos > 0 && (
+                              <Badge 
+                                bg={stats.porcentajeHoy >= 80 ? 'success' : stats.porcentajeHoy >= 60 ? 'warning' : 'danger'}
+                                className="ms-2"
+                              >
+                                {stats.porcentajeHoy}%
+                              </Badge>
+                            )}
+                          </strong>
                         </div>
                       )}
                     </div>
-
-                    {/* Última actividad */}
-                    {stats.ultimaAsistencia && (
-                      <div className="text-muted small mb-3">
-                        <Clock className="me-1" size={12} />
-                        Última asistencia: {new Date(stats.ultimaAsistencia).toLocaleDateString()}
-                      </div>
-                    )}
                   </Card.Body>
 
                   <Card.Footer className="bg-white">
@@ -290,30 +258,6 @@ const SelectorAsistencias: React.FC = () => {
           })}
         </Row>
       )}
-
-      {/* Información adicional */}
-      <Card className="mt-4 bg-light">
-        <Card.Body>
-          <Row>
-            <Col md={6}>
-              <h6><Clock className="me-2" /> Horario de México (UTC-6)</h6>
-              <p className="text-muted small mb-0">
-                La hora actual en México es: {mexicoTime.toLocaleTimeString('es-MX', { timeZone: 'America/Mexico_City' })}
-                <br />
-                Solo puedes marcar asistencia durante el horario de clase.
-              </p>
-            </Col>
-            <Col md={6}>
-              <h6><CalendarCheck className="me-2" /> Estadísticas</h6>
-              <p className="text-muted small mb-0">
-                <Badge bg="success" className="me-2">Verde</Badge> 80%+ asistencia
-                <Badge bg="warning" className="me-2 ms-3">Amarillo</Badge> 60-79% asistencia
-                <Badge bg="danger" className="me-2 ms-3">Rojo</Badge> Menos de 60% asistencia
-              </p>
-            </Col>
-          </Row>
-        </Card.Body>
-      </Card>
     </div>
   );
 };

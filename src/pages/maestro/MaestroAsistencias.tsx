@@ -1,11 +1,11 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Table, Form, Button, Card, Alert, Badge, Spinner, Tabs, Tab } from 'react-bootstrap';
+import { Table, Form, Button, Card, Alert, Badge, Spinner, Tabs, Tab, Row, Col } from 'react-bootstrap';
 import { classService } from '../../services/classService';
-import { Asistencia, Clase } from '../../interfaces';
+import { Asistencia, Clase, getDiaSemanaNombre } from '../../interfaces';
 import { useMexicoDateTime } from '../../hooks/useMexicoDateTime';
 import LoadingSpinner from '../../components/LoadingSpinner';
-import { Check, X, ArrowLeft, Clock, Calendar, Download, BarChart } from 'react-bootstrap-icons';
+import { Check, X, ArrowLeft, Clock, Calendar, BarChart } from 'react-bootstrap-icons';
 
 const MaestroAsistencias: React.FC = () => {
   const { claseId } = useParams<{ claseId: string }>();
@@ -26,10 +26,9 @@ const MaestroAsistencias: React.FC = () => {
     promedioAsistencia: 0
   });
 
-  const { getMexicoDateString, puedeMarcarAsistencia, mexicoTime } = useMexicoDateTime();
+  const { getMexicoDateString, puedeMarcarAsistencia, mexicoTime, getHorarioHoy } = useMexicoDateTime();
 
   useEffect(() => {
-    // Inicializar con fecha de México
     setFecha(getMexicoDateString());
   }, []);
 
@@ -53,7 +52,6 @@ const MaestroAsistencias: React.FC = () => {
         setClase(claseData);
         setAsistencias(asistenciasData);
         
-        // Cargar historial si estamos en esa pestaña
         if (activeTab === 'historial') {
           await fetchHistorial();
         }
@@ -66,7 +64,7 @@ const MaestroAsistencias: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [claseId, fecha]);
+  }, [claseId, fecha, activeTab]);
 
   const fetchHistorial = async () => {
     if (!claseId) return;
@@ -75,7 +73,6 @@ const MaestroAsistencias: React.FC = () => {
       const allAsistencias = await classService.getAsistencias(Number(claseId));
       setHistorialAsistencias(allAsistencias);
       
-      // Calcular estadísticas
       const totalClases = new Set(allAsistencias.map(a => a.fecha)).size;
       const totalAsistencias = allAsistencias.filter(a => a.presente).length;
       const totalRegistros = allAsistencias.length;
@@ -102,7 +99,8 @@ const MaestroAsistencias: React.FC = () => {
     }
   }, [activeTab, claseId]);
 
-  const handleMarcarAsistencia = async (alumnoId: number, presente: boolean) => {
+  // CORREGIDO: Ahora acepta 3 parámetros
+  const handleMarcarAsistencia = async (alumnoId: number, presente: boolean, horarioId?: number) => {
     if (!claseId) return;
     
     setUpdating(true);
@@ -111,7 +109,8 @@ const MaestroAsistencias: React.FC = () => {
         claseId: Number(claseId),
         alumnoId,
         fecha,
-        presente
+        presente,
+        horarioId // Incluir el horarioId si existe
       });
       await fetchData();
     } catch (err: any) {
@@ -127,6 +126,7 @@ const MaestroAsistencias: React.FC = () => {
   };
 
   const puedeMarcar = clase ? puedeMarcarAsistencia(clase) : false;
+  const horarioHoy = clase ? getHorarioHoy(clase.horarios) : null;
 
   // Agrupar historial por fecha
   const historialPorFecha = historialAsistencias.reduce((acc, asis) => {
@@ -141,22 +141,9 @@ const MaestroAsistencias: React.FC = () => {
 
   if (loading) return <LoadingSpinner />;
 
-  if (!claseId) {
+  if (!claseId || !clase) {
     return (
       <Alert variant="danger">
-        ID de clase no proporcionado
-        <div className="mt-3">
-          <Button variant="primary" onClick={() => navigate('/maestro/clases')}>
-            Volver a Mis Clases
-          </Button>
-        </div>
-      </Alert>
-    );
-  }
-
-  if (!clase) {
-    return (
-      <Alert variant="warning">
         Clase no encontrada
         <div className="mt-3">
           <Button variant="primary" onClick={() => navigate('/maestro/clases')}>
@@ -186,15 +173,26 @@ const MaestroAsistencias: React.FC = () => {
       <div className="d-flex justify-content-between align-items-start mb-4">
         <div>
           <h2 className="mb-1">{clase.nombre}</h2>
-          <p className="text-muted">
+          <div className="text-muted mb-2">
             <Clock className="me-1" />
-            {clase.horario || 'Horario no especificado'} |{' '}
-            <Calendar className="me-1" />
-            {clase.dias || 'Días no especificados'}
-          </p>
+            Horarios:
+            <div className="mt-1">
+              {clase.horarios.map((h, idx) => (
+                <Badge key={idx} bg="info" className="me-2">
+                  {getDiaSemanaNombre(h.dia_semana)} {h.hora_inicio.substring(0,5)}-{h.hora_fin.substring(0,5)}
+                </Badge>
+              ))}
+            </div>
+          </div>
           <p className="text-muted small">
             Hora México: {mexicoTime.toLocaleString('es-MX', { timeZone: 'America/Mexico_City' })}
           </p>
+          {horarioHoy && (
+            <p className="text-success small">
+              <Check className="me-1" />
+              Horario de hoy: {getDiaSemanaNombre(horarioHoy.dia_semana)} {horarioHoy.hora_inicio.substring(0,5)} - {horarioHoy.hora_fin.substring(0,5)}
+            </p>
+          )}
         </div>
         <div className="text-end">
           <Badge bg="info" className="p-3 mb-2 d-block">
@@ -208,17 +206,9 @@ const MaestroAsistencias: React.FC = () => {
         </div>
       </div>
 
-      {error && (
-        <Alert variant="danger" dismissible onClose={() => setError('')}>
-          {error}
-        </Alert>
-      )}
+      {error && <Alert variant="danger" dismissible onClose={() => setError('')}>{error}</Alert>}
 
-      <Tabs
-        activeKey={activeTab}
-        onSelect={(k) => setActiveTab(k || 'hoy')}
-        className="mb-4"
-      >
+      <Tabs activeKey={activeTab} onSelect={(k) => setActiveTab(k || 'hoy')} className="mb-4">
         <Tab eventKey="hoy" title="Asistencia Hoy">
           <Card className="mb-4">
             <Card.Body>
@@ -228,7 +218,7 @@ const MaestroAsistencias: React.FC = () => {
                   <Form.Control
                     type="date"
                     value={fecha}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFecha(e.target.value)}
+                    onChange={(e) => setFecha(e.target.value)}
                     max={getMexicoDateString()}
                   />
                 </Form.Group>
@@ -240,7 +230,7 @@ const MaestroAsistencias: React.FC = () => {
                   </div>
                 )}
 
-                {!puedeMarcar && (
+                {!puedeMarcar && fecha === getMexicoDateString() && (
                   <div className="text-warning">
                     <Clock className="me-1" />
                     Solo puedes marcar asistencia en horario de clase
@@ -267,6 +257,8 @@ const MaestroAsistencias: React.FC = () => {
                     {clase.alumnos && clase.alumnos.length > 0 ? (
                       clase.alumnos.map((alumno, index) => {
                         const asistencia = getAsistenciaAlumno(alumno.id);
+                        const puedeMarcarHoy = puedeMarcar && fecha === getMexicoDateString();
+                        
                         return (
                           <tr key={alumno.id}>
                             <td>{index + 1}</td>
@@ -281,18 +273,26 @@ const MaestroAsistencias: React.FC = () => {
                                 <Button
                                   variant={asistencia?.presente ? 'success' : 'outline-success'}
                                   size="sm"
-                                  onClick={() => handleMarcarAsistencia(alumno.id, true)}
-                                  disabled={updating || asistencia?.presente === true || !puedeMarcar}
-                                  title={!puedeMarcar ? 'Fuera de horario de clase' : 'Marcar como presente'}
+                                  onClick={() => handleMarcarAsistencia(
+                                    alumno.id, 
+                                    true, 
+                                    horarioHoy?.id
+                                  )}
+                                  disabled={updating || asistencia?.presente === true || !puedeMarcarHoy}
+                                  title={!puedeMarcarHoy ? 'Fuera de horario de clase' : 'Marcar como presente'}
                                 >
                                   <Check /> Presente
                                 </Button>
                                 <Button
                                   variant={asistencia?.presente === false ? 'danger' : 'outline-danger'}
                                   size="sm"
-                                  onClick={() => handleMarcarAsistencia(alumno.id, false)}
-                                  disabled={updating || asistencia?.presente === false || !puedeMarcar}
-                                  title={!puedeMarcar ? 'Fuera de horario de clase' : 'Marcar como ausente'}
+                                  onClick={() => handleMarcarAsistencia(
+                                    alumno.id, 
+                                    false,
+                                    horarioHoy?.id
+                                  )}
+                                  disabled={updating || asistencia?.presente === false || !puedeMarcarHoy}
+                                  title={!puedeMarcarHoy ? 'Fuera de horario de clase' : 'Marcar como ausente'}
                                 >
                                   <X /> Ausente
                                 </Button>
@@ -302,7 +302,11 @@ const MaestroAsistencias: React.FC = () => {
                                   <Badge bg={asistencia.presente ? 'success' : 'danger'} className="me-1">
                                     {asistencia.presente ? '✓' : '✗'}
                                   </Badge>
-                                  Registrado: {new Date(asistencia.fecha).toLocaleString()}
+                                  {asistencia.horario_id ? (
+                                    <>Registrado en horario específico</>
+                                  ) : (
+                                    <>Registrado</>
+                                  )}
                                 </small>
                               )}
                             </td>
@@ -313,13 +317,6 @@ const MaestroAsistencias: React.FC = () => {
                       <tr>
                         <td colSpan={4} className="text-center py-4">
                           <p className="text-muted mb-2">No hay alumnos inscritos en esta clase</p>
-                          <Button 
-                            variant="outline-primary" 
-                            size="sm"
-                            onClick={() => navigate('/maestro/clases')}
-                          >
-                            Volver a Mis Clases
-                          </Button>
                         </td>
                       </tr>
                     )}
@@ -327,7 +324,6 @@ const MaestroAsistencias: React.FC = () => {
                 </Table>
               </div>
 
-              {/* Resumen rápido */}
               {clase.alumnos && clase.alumnos.length > 0 && (
                 <div className="mt-3 p-3 bg-light rounded">
                   <div className="d-flex justify-content-between align-items-center">

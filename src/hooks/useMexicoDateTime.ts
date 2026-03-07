@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Horario } from '../interfaces';
 
 export const useMexicoDateTime = () => {
   const [mexicoTime, setMexicoTime] = useState<Date>(new Date());
@@ -27,54 +28,68 @@ export const useMexicoDateTime = () => {
     return mexicoDate.toISOString().split('T')[0];
   };
 
-  // Verificar si es el día de la clase
-  const esDiaDeClase = (diasClase: string | null): boolean => {
-    if (!diasClase) return true; // Si no hay días especificados, permitir
-    
-    const diasSemana = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
-    const hoy = getMexicoDate().getDay();
-    const hoyNombre = diasSemana[hoy].toLowerCase();
-    
-    // Convertir string de días a array y verificar
-    const diasArray = diasClase.toLowerCase().split(',').map(d => d.trim());
-    return diasArray.some(dia => dia.includes(hoyNombre) || hoyNombre.includes(dia));
+  // Obtener día de la semana actual en México (1=Lunes, 7=Domingo)
+  const getDiaSemanaActual = (): number => {
+    const mexicoDate = getMexicoDate();
+    const dia = mexicoDate.getDay(); // 0=Domingo, 1=Lunes, ..., 6=Sábado
+    return dia === 0 ? 7 : dia; // Convertir a nuestro formato (1=Lunes, 7=Domingo)
   };
 
-  // Verificar si está dentro del horario de clase
-  const estaEnHorario = (horario: string | null): boolean => {
-    if (!horario) return true; // Si no hay horario, permitir
-    
-    const now = getMexicoDate();
-    const horaActual = now.getHours();
-    const minutosActual = now.getMinutes();
-    
-    // Parsear horario (ej: "08:00 - 10:00")
-    const match = horario.match(/(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})/);
-    if (!match) return true;
-    
-    const horaInicio = parseInt(match[1]);
-    const minInicio = parseInt(match[2]);
-    const horaFin = parseInt(match[3]);
-    const minFin = parseInt(match[4]);
-    
-    const tiempoActual = horaActual * 60 + minutosActual;
-    const tiempoInicio = horaInicio * 60 + minInicio;
-    const tiempoFin = horaFin * 60 + minFin;
-    
-    return tiempoActual >= tiempoInicio && tiempoActual <= tiempoFin;
+  // Obtener hora actual en México (formato HH:MM:SS)
+  const getHoraActual = (): string => {
+    const mexicoDate = getMexicoDate();
+    return mexicoDate.toTimeString().split(' ')[0];
   };
 
-  // Verificar si se puede marcar asistencia
-  const puedeMarcarAsistencia = (clase: { dias?: string | null; horario?: string | null }): boolean => {
-    return esDiaDeClase(clase.dias || null) && estaEnHorario(clase.horario || null);
+  // Verificar si hoy es día de clase según los horarios
+  const esDiaDeClase = (horarios: Horario[]): boolean => {
+    if (!horarios || horarios.length === 0) return false;
+    
+    const diaActual = getDiaSemanaActual();
+    return horarios.some(h => h.dia_semana === diaActual);
   };
+
+  // Verificar si está dentro del horario de clase actual
+  const estaEnHorario = (horarios: Horario[]): boolean => {
+    if (!horarios || horarios.length === 0) return false;
+    
+    const diaActual = getDiaSemanaActual();
+    const horaActual = getHoraActual();
+    
+    const horarioHoy = horarios.find(h => h.dia_semana === diaActual);
+    if (!horarioHoy) return false;
+    
+    return horaActual >= horarioHoy.hora_inicio && horaActual <= horarioHoy.hora_fin;
+  };
+
+  // Verificar si se puede marcar asistencia ahora
+  const puedeMarcarAsistencia = (clase: { horarios: Horario[] }): boolean => {
+    return getHorarioHoy(clase.horarios) !== null;
+  };
+
+  // Obtener el horario de hoy si existe
+  const getHorarioHoy = (horarios: Horario[]): Horario | null => {
+    const diaActual = getDiaSemanaActual();
+    const horaActual = getHoraActual();
+    
+    // Buscar el horario que corresponde al día y hora actual
+    return horarios.find(h => 
+      h.dia_semana === diaActual && 
+      horaActual >= h.hora_inicio && 
+      horaActual <= h.hora_fin
+    ) || null;
+  };
+
 
   return {
     getMexicoDate,
     getMexicoDateString,
+    getDiaSemanaActual,
+    getHoraActual,
     esDiaDeClase,
     estaEnHorario,
     puedeMarcarAsistencia,
+    getHorarioHoy,
     mexicoTime
   };
 };

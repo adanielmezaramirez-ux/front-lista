@@ -5,9 +5,12 @@ export const adminService = {
   // Usuarios
   getUsers: async (): Promise<User[]> => {
     const response = await api.get('/admin/users');
-    return response.data;
+    // Mapear role_name a role para consistencia en el frontend
+    return response.data.map((user: any) => ({
+      ...user,
+      role: user.role_name || user.role // Asegurar que role esté presente
+    }));
   },
-
   assignRole: async (userId: number, roleName: string): Promise<any> => {
     const response = await api.post('/admin/assign-role', { userId, roleName });
     return response.data;
