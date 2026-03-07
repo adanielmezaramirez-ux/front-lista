@@ -16,11 +16,8 @@
     "noUnusedParameters": false,
     "noFallthroughCasesInSwitch": true,
     "allowSyntheticDefaultImports": true,
-    "esModuleInterop": true,
-    "verbatimModuleSyntax": false
+    "esModuleInterop": true
   },
-  "references": [
-    { "path": "./tsconfig.app.json" },
-    { "path": "./tsconfig.node.json" }
-  ]
+  "include": ["src"],
+  "exclude": ["node_modules", "dist", "**/*.d.ts"]
 }
