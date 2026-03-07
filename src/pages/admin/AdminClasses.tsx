@@ -1,9 +1,22 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Button, Modal, Form, Alert, Badge, Card, Row, Col } from 'react-bootstrap';
+import { Table, Button, Modal, Form, Alert, Badge, Card, Row, Col, ListGroup } from 'react-bootstrap';
 import { adminService } from '../../services/adminService';
 import { Clase, User, Horario, DIAS_SEMANA, getDiaSemanaNombre } from '../../interfaces';
 import LoadingSpinner from '../../components/LoadingSpinner';
-import { PersonPlus, People, Book, Clock, Trash } from 'react-bootstrap-icons';
+import { 
+  PersonPlus, 
+  People, 
+  Book, 
+  Clock, 
+  Trash, 
+  PersonCheck, 
+  PersonX, 
+  Info,
+  Person,
+  Envelope,
+  Telephone,
+  Hash
+} from 'react-bootstrap-icons';
 
 const AdminClasses: React.FC = () => {
   const [clases, setClases] = useState<Clase[]>([]);
@@ -14,6 +27,7 @@ const AdminClasses: React.FC = () => {
   const [showAssignMaestrosModal, setShowAssignMaestrosModal] = useState(false);
   const [showAssignAlumnosModal, setShowAssignAlumnosModal] = useState(false);
   const [showEditHorariosModal, setShowEditHorariosModal] = useState(false);
+  const [showViewAlumnosModal, setShowViewAlumnosModal] = useState(false);
   const [selectedClase, setSelectedClase] = useState<Clase | null>(null);
   
   const [formData, setFormData] = useState({
@@ -44,8 +58,8 @@ const AdminClasses: React.FC = () => {
         adminService.getUsers()
       ]);
       
-      console.log('Usuarios cargados:', usersData); // Debug
-      console.log('Maestros filtrados:', usersData.filter(u => u.role === 'maestro')); // Debug
+      console.log('Usuarios cargados:', usersData);
+      console.log('Clases cargadas:', clasesData);
       
       setUsers(usersData);
       setClases(clasesData);
@@ -166,8 +180,19 @@ const AdminClasses: React.FC = () => {
     }
   };
 
-  // CORREGIDO: Usar 'role' en lugar de 'role_name'
+  // Obtener maestros (todos los que tienen rol maestro)
   const getMaestros = () => users.filter(u => u.role === 'maestro');
+
+  // Obtener alumnos disponibles para una clase (excluye los ya inscritos)
+  const getAlumnosDisponibles = (clase: Clase | null) => {
+    if (!clase) return [];
+    const alumnosInscritosIds = new Set(clase.alumnos?.map(a => a.id) || []);
+    return users
+      .filter(u => u.role === 'alumno')
+      .filter(alumno => !alumnosInscritosIds.has(alumno.id));
+  };
+
+  // Obtener todos los alumnos
   const getAlumnos = () => users.filter(u => u.role === 'alumno');
 
   if (loading) return <LoadingSpinner />;
@@ -189,91 +214,134 @@ const AdminClasses: React.FC = () => {
       </div>
 
       <Row>
-        {clases.map((clase) => (
-          <Col md={6} lg={4} key={clase.id}>
-            <Card className="mb-4">
-              <Card.Header className="bg-primary text-white d-flex justify-content-between align-items-center">
-                <h5 className="mb-0">{clase.nombre}</h5>
-                <Button
-                  variant="light"
-                  size="sm"
-                  onClick={() => {
-                    setSelectedClase(clase);
-                    setShowEditHorariosModal(true);
-                  }}
-                >
-                  <Clock className="me-1" /> Editar Horarios
-                </Button>
-              </Card.Header>
-              <Card.Body>
-                {/* Horarios */}
-                <div className="mb-3">
-                  <strong className="d-flex align-items-center">
-                    <Clock className="me-2" /> Horarios:
-                  </strong>
-                  <div className="mt-2">
-                    {clase.horarios && clase.horarios.length > 0 ? (
-                      clase.horarios.map((h, idx) => (
-                        <Badge bg="info" className="me-2 mb-2 p-2" key={idx}>
-                          {getDiaSemanaNombre(h.dia_semana)} {h.hora_inicio.substring(0,5)} - {h.hora_fin.substring(0,5)}
-                        </Badge>
-                      ))
-                    ) : (
-                      <span className="text-muted">Sin horarios definidos</span>
-                    )}
+        {clases.map((clase) => {
+          const alumnosInscritos = clase.alumnos?.length || 0;
+          
+          return (
+            <Col md={6} lg={4} key={clase.id}>
+              <Card className="mb-4 h-100">
+                <Card.Header className="bg-primary text-white d-flex justify-content-between align-items-center">
+                  <h5 className="mb-0">{clase.nombre}</h5>
+                  <div>
+                    <Badge bg="light" text="dark" className="me-2">
+                      <People className="me-1" size={12} />
+                      {alumnosInscritos}
+                    </Badge>
+                    <Button
+                      variant="light"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedClase(clase);
+                        setShowEditHorariosModal(true);
+                      }}
+                    >
+                      <Clock size={14} />
+                    </Button>
                   </div>
-                </div>
-                
-                {/* Maestros */}
-                <div className="mb-3">
-                  <strong>Maestros:</strong>
-                  <div className="mt-1">
-                    {clase.maestros && clase.maestros.length > 0 ? (
-                      clase.maestros.map((m) => (
-                        <Badge bg="info" className="me-1 mb-1" key={m.id}>
-                          {m.nombre}
-                        </Badge>
-                      ))
-                    ) : (
-                      <span className="text-muted">Sin maestros</span>
-                    )}
+                </Card.Header>
+                <Card.Body>
+                  {/* Horarios */}
+                  <div className="mb-3">
+                    <strong className="d-flex align-items-center">
+                      <Clock className="me-2" /> Horarios:
+                    </strong>
+                    <div className="mt-2">
+                      {clase.horarios && clase.horarios.length > 0 ? (
+                        clase.horarios.map((h, idx) => (
+                          <Badge bg="info" className="me-2 mb-2 p-2" key={idx}>
+                            {getDiaSemanaNombre(h.dia_semana)} {h.hora_inicio.substring(0,5)} - {h.hora_fin.substring(0,5)}
+                          </Badge>
+                        ))
+                      ) : (
+                        <span className="text-muted">Sin horarios definidos</span>
+                      )}
+                    </div>
                   </div>
-                </div>
+                  
+                  {/* Maestros */}
+                  <div className="mb-3">
+                    <strong>Maestros:</strong>
+                    <div className="mt-1">
+                      {clase.maestros && clase.maestros.length > 0 ? (
+                        clase.maestros.map((m) => (
+                          <Badge bg="info" className="me-1 mb-1 p-2" key={m.id}>
+                            <Person className="me-1" size={12} />
+                            {m.nombre}
+                          </Badge>
+                        ))
+                      ) : (
+                        <span className="text-muted">Sin maestros</span>
+                      )}
+                    </div>
+                  </div>
 
-                {/* Alumnos */}
-                <div className="mb-3">
-                  <strong>Alumnos ({clase.total_alumnos || 0}):</strong>
-                </div>
+                  {/* Alumnos Inscritos - Vista previa */}
+                  <div className="mb-3">
+                    <strong className="d-flex align-items-center">
+                      <People className="me-2" /> Alumnos Inscritos ({alumnosInscritos}):
+                    </strong>
+                    <div className="mt-2">
+                      {clase.alumnos && clase.alumnos.length > 0 ? (
+                        <ListGroup variant="flush" className="border rounded">
+                          {clase.alumnos.slice(0, 3).map((alumno) => (
+                            <ListGroup.Item key={alumno.id} className="d-flex align-items-center py-2">
+                              <PersonCheck className="text-success me-2" size={14} />
+                              <small>{alumno.nombre}</small>
+                              <Badge bg="success" className="ms-2" pill>Inscrito</Badge>
+                            </ListGroup.Item>
+                          ))}
+                          {clase.alumnos.length > 3 && (
+                            <ListGroup.Item className="text-muted py-2">
+                              <small>Y {clase.alumnos.length - 3} alumno(s) más...</small>
+                            </ListGroup.Item>
+                          )}
+                        </ListGroup>
+                      ) : (
+                        <span className="text-muted">Sin alumnos inscritos</span>
+                      )}
+                    </div>
+                  </div>
 
-                {/* Botones de acción */}
-                <div className="d-flex gap-2 flex-wrap">
-                  <Button
-                    variant="outline-primary"
-                    size="sm"
-                    onClick={() => {
-                      setSelectedClase(clase);
-                      setSelectedMaestros(clase.maestros?.map(m => m.id) || []);
-                      setShowAssignMaestrosModal(true);
-                    }}
-                  >
-                    <PersonPlus /> Asignar Maestros
-                  </Button>
-                  <Button
-                    variant="outline-success"
-                    size="sm"
-                    onClick={() => {
-                      setSelectedClase(clase);
-                      setSelectedAlumnos([]);
-                      setShowAssignAlumnosModal(true);
-                    }}
-                  >
-                    <People /> Asignar Alumnos
-                  </Button>
-                </div>
-              </Card.Body>
-            </Card>
-          </Col>
-        ))}
+                  {/* Botones de acción */}
+                  <div className="d-flex gap-2 flex-wrap mt-3">
+                    <Button
+                      variant="outline-info"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedClase(clase);
+                        setShowViewAlumnosModal(true);
+                      }}
+                    >
+                      <People /> Ver Alumnos
+                    </Button>
+                    <Button
+                      variant="outline-primary"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedClase(clase);
+                        setSelectedMaestros(clase.maestros?.map(m => m.id) || []);
+                        setShowAssignMaestrosModal(true);
+                      }}
+                    >
+                      <PersonPlus /> Asignar Maestros
+                    </Button>
+                    <Button
+                      variant="outline-success"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedClase(clase);
+                        setSelectedAlumnos([]);
+                        setShowAssignAlumnosModal(true);
+                      }}
+                    >
+                      <People /> Agregar Alumnos
+                    </Button>
+                  </div>
+                </Card.Body>
+              </Card>
+            </Col>
+          );
+        })}
       </Row>
 
       {/* Modal Crear Clase */}
@@ -418,6 +486,78 @@ const AdminClasses: React.FC = () => {
             disabled={updating || !formData.nombre || formData.horarios.length === 0}
           >
             {updating ? 'Creando...' : 'Crear Clase'}
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Modal Ver Alumnos Inscritos */}
+      <Modal show={showViewAlumnosModal} onHide={() => setShowViewAlumnosModal(false)} size="lg">
+        <Modal.Header closeButton>
+          <Modal.Title>
+            <People className="me-2" />
+            Alumnos inscritos en {selectedClase?.nombre}
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {selectedClase && (
+            <>
+              {selectedClase.alumnos && selectedClase.alumnos.length > 0 ? (
+                <Table striped bordered hover responsive>
+                  <thead className="bg-light">
+                    <tr>
+                      <th>#</th>
+                      <th>Nombre Completo</th>
+                      <th>Email</th>
+                      <th>Estado</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedClase.alumnos.map((alumno, index) => (
+                      <tr key={alumno.id}>
+                        <td>{index + 1}</td>
+                        <td>
+                          <strong>{alumno.nombre}</strong>
+                        </td>
+                        <td>
+                          <Envelope className="me-1 text-muted" size={12} />
+                          {alumno.email}
+                        </td>
+                        <td>
+                          <Badge bg="success">
+                            <PersonCheck className="me-1" size={12} />
+                            Inscrito
+                          </Badge>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </Table>
+              ) : (
+                <Alert variant="info">
+                  <Info className="me-2" />
+                  No hay alumnos inscritos en esta clase
+                </Alert>
+              )}
+              <div className="text-muted mt-3">
+                <small>
+                  Total de alumnos inscritos: {selectedClase.alumnos?.length || 0}
+                </small>
+              </div>
+            </>
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowViewAlumnosModal(false)}>
+            Cerrar
+          </Button>
+          <Button 
+            variant="success" 
+            onClick={() => {
+              setShowViewAlumnosModal(false);
+              setShowAssignAlumnosModal(true);
+            }}
+          >
+            <People /> Agregar más alumnos
           </Button>
         </Modal.Footer>
       </Modal>
@@ -593,50 +733,86 @@ const AdminClasses: React.FC = () => {
         </Modal.Footer>
       </Modal>
 
-      {/* Modal Asignar Alumnos */}
+      {/* Modal Asignar Alumnos - MEJORADO: excluye alumnos ya inscritos */}
       <Modal show={showAssignAlumnosModal} onHide={() => setShowAssignAlumnosModal(false)} size="lg">
         <Modal.Header closeButton>
-          <Modal.Title>Asignar Alumnos a {selectedClase?.nombre}</Modal.Title>
+          <Modal.Title>
+            <People className="me-2" />
+            Agregar Alumnos a {selectedClase?.nombre}
+          </Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          <Form.Group>
-            <Form.Label>Seleccionar Alumnos</Form.Label>
-            {getAlumnos().length === 0 ? (
-              <Alert variant="warning">No hay alumnos disponibles</Alert>
-            ) : (
-              <>
-                <Form.Select
-                  multiple
-                  value={selectedAlumnos.map(String)}
-                  onChange={(e) => {
-                    const selected = Array.from(e.target.selectedOptions, option => Number(option.value));
-                    setSelectedAlumnos(selected);
-                  }}
-                  style={{ minHeight: '200px' }}
-                >
-                  {getAlumnos().map((alumno) => (
-                    <option key={alumno.id} value={alumno.id}>
-                      {alumno.firstname} {alumno.lastname} - {alumno.email}
-                    </option>
-                  ))}
-                </Form.Select>
-                <Form.Text className="text-muted">
-                  Mantén presionado Ctrl para seleccionar múltiples alumnos
-                </Form.Text>
-              </>
-            )}
-          </Form.Group>
+          {selectedClase && (
+            <>
+              {/* Mostrar alumnos ya inscritos */}
+              {selectedClase.alumnos && selectedClase.alumnos.length > 0 && (
+                <div className="mb-4">
+                  <h6 className="text-success mb-2">
+                    <PersonCheck className="me-2" />
+                    Alumnos ya inscritos ({selectedClase.alumnos.length})
+                  </h6>
+                  <div className="border rounded p-2 bg-light" style={{ maxHeight: '100px', overflowY: 'auto' }}>
+                    {selectedClase.alumnos.map(alumno => (
+                      <Badge bg="success" className="me-2 mb-2 p-2" key={alumno.id}>
+                        {alumno.nombre}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Seleccionar nuevos alumnos */}
+              <Form.Group>
+                <Form.Label className="text-primary">
+                  <PersonPlus className="me-2" />
+                  Seleccionar nuevos alumnos para agregar
+                </Form.Label>
+                {getAlumnosDisponibles(selectedClase).length === 0 ? (
+                  <Alert variant="info">
+                    <Info className="me-2" />
+                    No hay alumnos disponibles para agregar. Todos los alumnos ya están inscritos en esta clase.
+                  </Alert>
+                ) : (
+                  <>
+                    <Form.Select
+                      multiple
+                      value={selectedAlumnos.map(String)}
+                      onChange={(e) => {
+                        const selected = Array.from(e.target.selectedOptions, option => Number(option.value));
+                        setSelectedAlumnos(selected);
+                      }}
+                      style={{ minHeight: '250px' }}
+                    >
+                      {getAlumnosDisponibles(selectedClase).map((alumno) => (
+                        <option key={alumno.id} value={alumno.id}>
+                          {alumno.firstname} {alumno.lastname} - {alumno.email}
+                        </option>
+                      ))}
+                    </Form.Select>
+                    <Form.Text className="text-muted">
+                      Mantén presionado Ctrl para seleccionar múltiples alumnos
+                    </Form.Text>
+                    <div className="mt-2 text-info">
+                      <small>
+                        Alumnos disponibles para agregar: {getAlumnosDisponibles(selectedClase).length}
+                      </small>
+                    </div>
+                  </>
+                )}
+              </Form.Group>
+            </>
+          )}
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={() => setShowAssignAlumnosModal(false)}>
             Cancelar
           </Button>
           <Button 
-            variant="primary" 
+            variant="success" 
             onClick={handleAssignAlumnos}
             disabled={updating || selectedAlumnos.length === 0}
           >
-            {updating ? 'Asignando...' : 'Asignar Alumnos'}
+            {updating ? 'Asignando...' : `Agregar ${selectedAlumnos.length} Alumno(s)`}
           </Button>
         </Modal.Footer>
       </Modal>
