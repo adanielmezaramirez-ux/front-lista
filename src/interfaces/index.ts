@@ -22,15 +22,11 @@ export interface Alumno {
 export interface Clase {
   id: number;
   nombre: string;
-  horario: string | null;
-  dias: string | null;
+  horarios: Horario[];
   maestros?: Maestro[];
   alumnos?: Alumno[];
   total_alumnos?: number;
-  // Nuevos campos para estadísticas
-  asistencias_hoy?: number;
-  asistencias_semana?: number;
-  ultima_asistencia?: string;
+  created_by?: number;
 }
 
 export interface Asistencia {
@@ -68,4 +64,11 @@ export interface EstadisticasClase {
   asistenciasSemana: number;
   promedioAsistencia: number;
   ultimaActualizacion: string;
+}
+
+export interface Horario {
+  id?: number;
+  dia_semana: number;
+  hora_inicio: string;
+  hora_fin: string;
 }
