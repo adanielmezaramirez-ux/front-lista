@@ -1,0 +1,86 @@
+# Dependencias
+node_modules
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Entorno y configuración
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.vite
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# Build y distribución
+dist
+dist-ssr
+build
+*.local
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Archivos de sistema
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Coverage de pruebas
+coverage
+.nyc_output
+
+# Cache
+.cache
+.temp
+*.tsbuildinfo
+
+# Editor
+.vscode/
+.idea/
+*.sublime-*
+
+# Archivos de entorno específicos
+.env
+.env.production
+.env.development
+
+# Archivos de certificados
+*.pem
+*.p12
+*.pfx
+*.key
+*.crt
+
+# Backup files
+*.bak
+*.backup
+
+# IDE - VSCode
+.history
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Directorios de documentación
+doc/
+docs/
+
+# Otros
+*.tmp
+*.temp
+temp/
+tmp/
