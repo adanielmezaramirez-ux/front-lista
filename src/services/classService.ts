@@ -17,7 +17,8 @@ export const classService = {
     alumnoId: number; 
     fecha: string; 
     presente: boolean;
-    horarioId?: number; // Nuevo campo opcional
+    horarioId?: number;
+    observacion?: string;
   }): Promise<any> => {
     const response = await api.post('/classes/asistencia', data);
     return response.data;
@@ -26,6 +27,19 @@ export const classService = {
   getAsistencias: async (claseId: number, fecha?: string): Promise<Asistencia[]> => {
     const response = await api.get(`/classes/${claseId}/asistencias`, {
       params: { fecha },
+    });
+    return response.data;
+  },
+
+  verificarClaseReprogramada: async (claseId: number, fecha: string): Promise<{
+    claseId: number;
+    fecha: string;
+    estaBloqueada: boolean;
+    esReprogramada: boolean;
+    reprogramacion: any | null;
+  }> => {
+    const response = await api.get('/reprogramaciones/verificar', {
+      params: { claseId, fecha }
     });
     return response.data;
   },

@@ -22,7 +22,8 @@ const Perfil: React.FC = () => {
   const getRoleBadge = () => {
     if (isAdmin) return <Badge bg="danger" className="px-3 py-2"><Shield className="me-2" />Administrador</Badge>;
     if (isMaestro) return <Badge bg="warning" className="px-3 py-2"><Star className="me-2" />Maestro</Badge>;
-    return <Badge bg="success" className="px-3 py-2"><CheckCircle className="me-2" />Alumno</Badge>;
+    if (user?.roles?.includes('alumno')) return <Badge bg="success" className="px-3 py-2"><CheckCircle className="me-2" />Alumno</Badge>;
+    return <Badge bg="secondary" className="px-3 py-2"><CheckCircle className="me-2" />Usuario</Badge>;
   };
 
   const getStatusBadge = () => {
@@ -35,9 +36,27 @@ const Perfil: React.FC = () => {
     return <Badge bg="success" className="px-3 py-2"><CheckCircle className="me-2" />Activo</Badge>;
   };
 
+  const getRolesList = () => {
+    if (user?.roles && user.roles.length > 0) {
+      return user.roles.map(role => {
+        const roleMap: {[key: string]: {bg: string, label: string}} = {
+          'admin': {bg: 'danger', label: 'Administrador'},
+          'maestro': {bg: 'warning', label: 'Maestro'},
+          'alumno': {bg: 'success', label: 'Alumno'}
+        };
+        const roleInfo = roleMap[role] || {bg: 'secondary', label: role};
+        return (
+          <Badge key={role} bg={roleInfo.bg} className="me-1 px-2 py-1">
+            {roleInfo.label}
+          </Badge>
+        );
+      });
+    }
+    return <Badge bg="secondary" className="px-2 py-1">Sin rol</Badge>;
+  };
+
   return (
     <div className="container-fluid px-0">
-      {/* Header */}
       <Row className="mb-4 align-items-center">
         <Col>
           <h2 className="mb-2">Mi Perfil</h2>
@@ -56,11 +75,9 @@ const Perfil: React.FC = () => {
       </Row>
 
       <Row className="g-4">
-        {/* Columna izquierda - Avatar */}
         <Col lg={4}>
           <Card className="text-center h-100 border-0 shadow-sm">
             <Card.Body className="p-4">
-              {/* Avatar con imagen de Vite */}
               <div className="position-relative d-inline-block mb-4">
                 <div className="bg-light rounded-circle d-inline-flex p-3 border" 
                      style={{ 
@@ -98,7 +115,6 @@ const Perfil: React.FC = () => {
           </Card>
         </Col>
 
-        {/* Columna derecha - Información detallada */}
         <Col lg={8}>
           <Card className="border-0 shadow-sm mb-4">
             <Card.Header className="bg-white border-0 pt-4">
@@ -149,8 +165,8 @@ const Perfil: React.FC = () => {
                     <ShieldCheck className="text-primary" size={20} />
                   </div>
                   <div className="flex-grow-1">
-                    <small className="text-muted d-block">Rol en el sistema</small>
-                    <div>{getRoleBadge()}</div>
+                    <small className="text-muted d-block">Roles en el sistema</small>
+                    <div>{getRolesList()}</div>
                   </div>
                 </ListGroup.Item>
               </ListGroup>
@@ -206,6 +222,10 @@ const Perfil: React.FC = () => {
                   </div>
                   <div className="d-flex justify-content-around">
                     <div className="text-center">
+                      <div className="fw-bold">{user?.roles?.length || 0}</div>
+                      <small className="text-muted">Roles</small>
+                    </div>
+                    <div className="text-center">
                       <div className="fw-bold">0</div>
                       <small className="text-muted">Clases</small>
                     </div>
@@ -213,17 +233,12 @@ const Perfil: React.FC = () => {
                       <div className="fw-bold">0</div>
                       <small className="text-muted">Asistencias</small>
                     </div>
-                    <div className="text-center">
-                      <div className="fw-bold">0</div>
-                      <small className="text-muted">Días</small>
-                    </div>
                   </div>
                 </Card.Body>
               </Card>
             </Col>
           </Row>
 
-          {/* Información del sistema */}
           <Card className="border-0 shadow-sm mt-4 bg-light">
             <Card.Body className="py-2">
               <div className="d-flex align-items-center justify-content-between">

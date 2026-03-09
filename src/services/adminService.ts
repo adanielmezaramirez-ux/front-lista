@@ -2,21 +2,26 @@ import api from './api';
 import { User, Clase, Horario } from '../interfaces';
 
 export const adminService = {
-  // Usuarios
   getUsers: async (): Promise<User[]> => {
     const response = await api.get('/admin/users');
-    // Mapear role_name a role para consistencia en el frontend
-    return response.data.map((user: any) => ({
-      ...user,
-      role: user.role_name || user.role // Asegurar que role esté presente
-    }));
+    return response.data;
   },
+  
   assignRole: async (userId: number, roleName: string): Promise<any> => {
     const response = await api.post('/admin/assign-role', { userId, roleName });
     return response.data;
   },
 
-  // Clases - Gestión
+  assignMultipleRoles: async (userId: number, roleNames: string[]): Promise<any> => {
+    const response = await api.post('/admin/assign-multiple-roles', { userId, roleNames });
+    return response.data;
+  },
+
+  removeRoles: async (userId: number, roleNames: string[]): Promise<any> => {
+    const response = await api.post('/admin/remove-roles', { userId, roleNames });
+    return response.data;
+  },
+
   getClasses: async (): Promise<Clase[]> => {
     const response = await api.get('/admin/classes');
     return response.data;
@@ -48,7 +53,6 @@ export const adminService = {
     return response.data;
   },
 
-  // Horarios
   updateHorarios: async (claseId: number, horarios: Horario[]): Promise<any> => {
     const response = await api.put(`/admin/classes/${claseId}/horarios`, { horarios });
     return response.data;
@@ -64,7 +68,6 @@ export const adminService = {
     return response.data;
   },
 
-  // Maestros
   asignarMaestros: async (claseId: number, maestrosIds: number[]): Promise<any> => {
     const response = await api.post(`/admin/classes/${claseId}/maestros`, { maestrosIds });
     return response.data;
@@ -80,7 +83,6 @@ export const adminService = {
     return response.data;
   },
 
-  // Alumnos
   asignarAlumnos: async (claseId: number, alumnosIds: number[]): Promise<any> => {
     const response = await api.post(`/admin/classes/${claseId}/alumnos`, { alumnosIds });
     return response.data;
@@ -101,7 +103,6 @@ export const adminService = {
     return response.data;
   },
 
-  // Reportes
   descargarReporteExcel: async (params?: { 
     claseId?: number; 
     fechaInicio?: string; 
@@ -126,7 +127,6 @@ export const adminService = {
     return response.data;
   },
 
-  // Reportes con filtros avanzados
   getReporteAsistencias: async (params: {
     claseId?: number;
     alumnoId?: number;
@@ -138,7 +138,6 @@ export const adminService = {
     return response.data;
   },
 
-  // Estadísticas
   getEstadisticasClase: async (claseId: number): Promise<any> => {
     const response = await api.get(`/admin/classes/${claseId}/estadisticas`);
     return response.data;
@@ -149,13 +148,11 @@ export const adminService = {
     return response.data;
   },
 
-  // Dashboard
   getDashboardData: async (): Promise<any> => {
     const response = await api.get('/admin/dashboard');
     return response.data;
   },
 
-  // Exportar datos
   exportarUsuarios: async (formato: 'excel' | 'pdf' | 'csv'): Promise<Blob> => {
     const response = await api.get(`/admin/export/usuarios/${formato}`, {
       responseType: 'blob',
@@ -170,7 +167,6 @@ export const adminService = {
     return response.data;
   },
 
-  // Respaldo de datos
   backupDatabase: async (): Promise<Blob> => {
     const response = await api.get('/admin/backup', {
       responseType: 'blob',

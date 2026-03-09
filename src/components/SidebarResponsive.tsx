@@ -10,7 +10,10 @@ import {
   BarChartLine,
   PersonBadge,
   DoorOpen,
-  X
+  X,
+  Shield,
+  PersonVcard,
+  Calendar
 } from 'react-bootstrap-icons';
 
 interface SidebarResponsiveProps {
@@ -20,7 +23,7 @@ interface SidebarResponsiveProps {
 
 const SidebarResponsive: React.FC<SidebarResponsiveProps> = ({ isOpen, onClose }) => {
   const location = useLocation();
-  const { user, logout, isAdmin, isMaestro } = useAuth();
+  const { user, logout, currentView } = useAuth();
 
   const handleLinkClick = () => {
     if (window.innerWidth <= 768) {
@@ -38,6 +41,18 @@ const SidebarResponsive: React.FC<SidebarResponsiveProps> = ({ isOpen, onClose }
       return location.pathname === '/dashboard';
     }
     return location.pathname.startsWith(path);
+  };
+
+  const getRoleText = () => {
+    if (currentView === 'admin') return 'Administrador';
+    if (currentView === 'maestro') return 'Maestro';
+    return 'Usuario';
+  };
+
+  const getRoleIcon = () => {
+    if (currentView === 'admin') return <Shield className="me-1" size={14} />;
+    if (currentView === 'maestro') return <PersonVcard className="me-1" size={14} />;
+    return null;
   };
 
   return (
@@ -70,8 +85,9 @@ const SidebarResponsive: React.FC<SidebarResponsiveProps> = ({ isOpen, onClose }
             </div>
             <h5 className="mb-1">{user?.firstname} {user?.lastname}</h5>
             <small className="text-white-50 d-block mb-2">@{user?.username}</small>
-            <span className="badge bg-info">
-              {isAdmin ? 'Administrador' : isMaestro ? 'Maestro' : 'Usuario'}
+            <span className={`badge bg-${currentView === 'admin' ? 'danger' : 'warning'} d-inline-flex align-items-center`}>
+              {getRoleIcon()}
+              {getRoleText()}
             </span>
           </div>
 
@@ -85,7 +101,7 @@ const SidebarResponsive: React.FC<SidebarResponsiveProps> = ({ isOpen, onClose }
               <HouseDoor className="me-2" /> Dashboard
             </Nav.Link>
 
-            {isAdmin && (
+            {currentView === 'admin' && (
               <>
                 <Nav.Link 
                   as={Link} 
@@ -111,10 +127,18 @@ const SidebarResponsive: React.FC<SidebarResponsiveProps> = ({ isOpen, onClose }
                 >
                   <BarChartLine className="me-2" /> Reportes
                 </Nav.Link>
+                <Nav.Link 
+                  as={Link} 
+                  to="/admin/reprogramaciones" 
+                  className={isActiveRoute('/admin/reprogramaciones') ? 'active' : ''}
+                  onClick={handleLinkClick}
+                >
+                  <Calendar className="me-2" /> Reprogramaciones
+                </Nav.Link>
               </>
             )}
 
-            {isMaestro && (
+            {currentView === 'maestro' && (
               <>
                 <Nav.Link 
                   as={Link} 

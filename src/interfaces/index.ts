@@ -4,7 +4,8 @@ export interface User {
   firstname: string;
   lastname: string;
   email: string;
-  role: 'admin' | 'maestro' | 'alumno';
+  role?: 'admin' | 'maestro' | 'alumno';
+  roles?: string[];
   role_name?: 'admin' | 'maestro' | 'alumno';
   suspended?: number;
   deleted?: number;
@@ -29,9 +30,9 @@ export interface Alumno {
 
 export interface Horario {
   id?: number;
-  dia_semana: number; // 1=Lunes, 2=Martes, 3=Miércoles, 4=Jueves, 5=Viernes, 6=Sábado, 7=Domingo
-  hora_inicio: string; // Formato: HH:MM:SS
-  hora_fin: string;    // Formato: HH:MM:SS
+  dia_semana: number;
+  hora_inicio: string;
+  hora_fin: string;
 }
 
 export interface Clase {
@@ -57,7 +58,36 @@ export interface Asistencia {
   alumno_nombre?: string;
   alumno_apellido?: string;
   clase_nombre?: string;
-  registrado_por?: number;
+  registrado_por: 'sistema' | 'maestro';
+  observacion?: string;
+  horario_id?: number;
+  dia_semana?: number;
+  hora_inicio?: string;
+  hora_fin?: string;
+  reprogramacion_id?: number;
+}
+
+export interface Reprogramacion {
+  id: number;
+  clase_id: number;
+  clase_nombre: string;
+  horario_original_id: number;
+  fecha_original: string;
+  fecha_reprogramada: string;
+  horario_reprogramado_id?: number;
+  motivo: string;
+  solicitado_por: number;
+  solicitado_por_nombre: string;
+  aprobado_por?: number;
+  aprobado_por_nombre?: string;
+  estado: 'pendiente' | 'aprobada' | 'rechazada' | 'cancelada';
+  dia_original?: number;
+  hora_inicio_original?: string;
+  hora_fin_original?: string;
+  dia_reprogramado?: number;
+  hora_inicio_reprogramado?: string;
+  hora_fin_reprogramado?: string;
+  created_at: string;
 }
 
 export interface LoginCredentials {
@@ -83,9 +113,10 @@ export interface EstadisticasClase {
   asistenciasSemana: number;
   promedioAsistencia: number;
   ultimaActualizacion: string;
+  asistenciasSistema: number;
+  asistenciasMaestro: number;
 }
 
-// Días de la semana en español
 export const DIAS_SEMANA = [
   { value: 1, label: 'Lunes' },
   { value: 2, label: 'Martes' },
@@ -96,19 +127,27 @@ export const DIAS_SEMANA = [
   { value: 7, label: 'Domingo' }
 ];
 
-// Función helper para obtener nombre del día
+export const ESTADOS_REPROGRAMACION = [
+  { value: 'pendiente', label: 'Pendiente', bg: 'warning' },
+  { value: 'aprobada', label: 'Aprobada', bg: 'success' },
+  { value: 'rechazada', label: 'Rechazada', bg: 'danger' },
+  { value: 'cancelada', label: 'Cancelada', bg: 'secondary' }
+];
+
 export const getDiaSemanaNombre = (dia: number): string => {
   return DIAS_SEMANA.find(d => d.value === dia)?.label || 'Desconocido';
 };
 
-// Función helper para formatear horario
 export const formatearHorario = (horario: Horario): string => {
   const inicio = horario.hora_inicio.substring(0, 5);
   const fin = horario.hora_fin.substring(0, 5);
   return `${getDiaSemanaNombre(horario.dia_semana)} ${inicio} - ${fin}`;
 };
 
-// Función helper para obtener todos los horarios formateados
 export const formatearHorarios = (horarios: Horario[]): string[] => {
   return horarios.map(formatearHorario);
+};
+
+export const getEstadoReprogramacion = (estado: string) => {
+  return ESTADOS_REPROGRAMACION.find(e => e.value === estado) || { label: estado, bg: 'secondary' };
 };

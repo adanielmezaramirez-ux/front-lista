@@ -1,44 +1,73 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Button, Modal, Form, Badge, Alert, ProgressBar, Card, Row, Col, InputGroup } from 'react-bootstrap';
+import { Table, Button, Modal, Form, Badge, Alert, ProgressBar, Card, Row, Col, InputGroup, OverlayTrigger, Tooltip } from 'react-bootstrap';
 import { adminService } from '../../services/adminService';
 import { User } from '../../interfaces';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import { 
   Search, 
   Filter,
-  Check2,
   X,
   ArrowRepeat,
   Shield,
   People,
   Gear,
   ExclamationTriangle,
-  Check2Square
+  Check2Square,
+  PersonBadge,
+  PersonVcard,
+  Person,
+  InfoCircle,
+  Hash,
+  Envelope,
+  SortUp,
+  SortDown,
+  CheckCircle,
+  Trash,
+  QuestionCircle,
+  ChevronDown,
+  ChevronUp
 } from 'react-bootstrap-icons';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface SelectedUser {
   id: number;
   username: string;
-  currentRole: string;
+  currentRoles: string[];
+}
+
+interface PendingChange {
+  userId: number;
+  role: string;
+  action: 'add' | 'remove';
 }
 
 const Users: React.FC = () => {
+  const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [showModal, setShowModal] = useState(false);
-  const [selectedUsers, setSelectedUsers] = useState<SelectedUser[]>([]);
-  const [selectedRole, setSelectedRole] = useState('');
-  const [updating, setUpdating] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState('todos');
-  const [showConfirmModal, setShowConfirmModal] = useState(false);
-  const [processedCount, setProcessedCount] = useState(0);
-  const [totalToProcess, setTotalToProcess] = useState(0);
-  const [currentUser, setCurrentUser] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [selectAll, setSelectAll] = useState(false);
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'id', direction: 'asc' });
+  const [showFilters, setShowFilters] = useState(true);
+  const [statusFilter, setStatusFilter] = useState<string>('todos');
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [pendingChange, setPendingChange] = useState<PendingChange | null>(null);
+  const [showLoadingModal, setShowLoadingModal] = useState(false);
+  const [processingMessage, setProcessingMessage] = useState('');
+  const [processedCount, setProcessedCount] = useState(0);
+  const [totalToProcess, setTotalToProcess] = useState(0);
+  const [currentProcessingUser, setCurrentProcessingUser] = useState('');
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
+
+  const availableRoles = [
+    { value: 'admin', label: 'Administrador', icon: <Shield className="me-1" size={14} />, bg: 'danger' },
+    { value: 'maestro', label: 'Maestro', icon: <PersonVcard className="me-1" size={14} />, bg: 'warning' },
+    { value: 'alumno', label: 'Alumno', icon: <PersonBadge className="me-1" size={14} />, bg: 'success' }
+  ];
 
   useEffect(() => {
     fetchUsers();
@@ -49,31 +78,88 @@ const Users: React.FC = () => {
 
     if (searchTerm) {
       filtered = filtered.filter(u => 
-        u.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        u.firstname.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        u.lastname.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        u.email.toLowerCase().includes(searchTerm.toLowerCase())
+        u.username?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        u.firstname?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        u.lastname?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        u.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        u.id?.toString().includes(searchTerm)
       );
     }
 
     if (filterRole !== 'todos') {
       if (filterRole === 'sin-rol') {
-        filtered = filtered.filter(u => !u.role_name);
+        filtered = filtered.filter(u => !u.roles || u.roles.length === 0);
       } else {
-        filtered = filtered.filter(u => u.role_name === filterRole);
+        filtered = filtered.filter(u => u.roles?.includes(filterRole));
       }
     }
 
+    if (statusFilter !== 'todos') {
+      switch(statusFilter) {
+        case 'activo':
+          filtered = filtered.filter(u => !u.suspended && u.confirmed);
+          break;
+        case 'suspendido':
+          filtered = filtered.filter(u => u.suspended);
+          break;
+        case 'no-confirmado':
+          filtered = filtered.filter(u => !u.confirmed);
+          break;
+        case 'eliminado':
+          filtered = filtered.filter(u => u.deleted);
+          break;
+      }
+    }
+
+    filtered.sort((a, b) => {
+      let aValue: any = a[sortConfig.key as keyof User];
+      let bValue: any = b[sortConfig.key as keyof User];
+      
+      if (sortConfig.key === 'nombre') {
+        aValue = `${a.firstname} ${a.lastname}`;
+        bValue = `${b.firstname} ${b.lastname}`;
+      }
+      
+      if (sortConfig.key === 'roles') {
+        aValue = a.roles?.length || 0;
+        bValue = b.roles?.length || 0;
+      }
+
+      if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
+      if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
+      return 0;
+    });
+
     setFilteredUsers(filtered);
     setSelectAll(selectedIds.size === filtered.length && filtered.length > 0);
-  }, [users, searchTerm, filterRole, selectedIds.size, filteredUsers.length]);
+  }, [users, searchTerm, filterRole, statusFilter, selectedIds.size, filteredUsers.length, sortConfig]);
 
   const fetchUsers = async () => {
     try {
+      setLoading(true);
       const data = await adminService.getUsers();
-      setUsers(data);
-      setFilteredUsers(data);
+      
+      const processedData = data.map(user => {
+        if (user.roles && Array.isArray(user.roles)) {
+          return user;
+        }
+        if (user.role_name) {
+          return {
+            ...user,
+            roles: [user.role_name]
+          };
+        }
+        return {
+          ...user,
+          roles: []
+        };
+      });
+
+      setUsers(processedData);
+      setFilteredUsers(processedData);
+      setError('');
     } catch (error) {
+      console.error('Error fetching users:', error);
       setError('Error al cargar usuarios');
     } finally {
       setLoading(false);
@@ -103,80 +189,83 @@ const Users: React.FC = () => {
     }
   };
 
-  const prepareSingleRoleChange = (user: User) => {
-    setSelectedUsers([{
-      id: user.id,
-      username: user.username,
-      currentRole: user.role_name || 'sin-rol'
-    }]);
-    setSelectedRole(user.role_name || '');
-    setShowModal(true);
-  };
-
-  const prepareBulkRoleChange = (role: string) => {
-    const selected = Array.from(selectedIds).map(id => {
-      const user = users.find(u => u.id === id);
-      return {
-        id,
-        username: user?.username || '',
-        currentRole: user?.role_name || 'sin-rol'
-      };
-    });
-
-    setSelectedUsers(selected);
-    setSelectedRole(role);
-    setShowModal(true);
-  };
-
-  const handleAssignRole = async () => {
-    if (!selectedUsers.length || !selectedRole) return;
-
-    setUpdating(true);
-    setShowModal(false);
-    setShowConfirmModal(true);
-    setProcessedCount(0);
-    setTotalToProcess(selectedUsers.length);
-
-    for (let i = 0; i < selectedUsers.length; i++) {
-      const user = selectedUsers[i];
-      setCurrentUser(`${user.username} (${i + 1}/${selectedUsers.length})`);
-      
-      try {
-        await adminService.assignRole(user.id, selectedRole);
-        setProcessedCount(i + 1);
-      } catch (err) {
-        console.error(`Error al cambiar rol de ${user.username}:`, err);
-        setError(`Error con usuario ${user.username}`);
-      }
-
-      await new Promise(resolve => setTimeout(resolve, 100));
+  const handleRoleChange = (userId: number, role: string, checked: boolean, currentRoles: string[]) => {
+    const action = checked ? 'add' : 'remove';
+    
+    if (action === 'remove' && role === 'admin' && currentUser?.id === userId) {
+      setError('No puedes quitarte el rol de administrador a ti mismo');
+      return;
     }
 
-    await fetchUsers();
-    
-    setUpdating(false);
-    setShowConfirmModal(false);
-    setSelectedIds(new Set());
-    setSelectedUsers([]);
-    setSelectedRole('');
+    setPendingChange({
+      userId,
+      role,
+      action
+    });
+    setShowConfirmModal(true);
   };
 
-  const getRoleBadge = (role?: string) => {
-    if (!role) return <Badge bg="secondary" className="px-2 py-1">Sin rol</Badge>;
-    
-    const variants: { [key: string]: { bg: string, icon: any, label: string } } = {
-      admin: { bg: 'danger', icon: <Shield className="me-1" size={12} />, label: 'Admin' },
-      maestro: { bg: 'warning', icon: <People className="me-1" size={12} />, label: 'Maestro' },
-      alumno: { bg: 'success', icon: <People className="me-1" size={12} />, label: 'Alumno' },
-    };
-    
-    const config = variants[role] || { bg: 'secondary', icon: null, label: role };
+  const executeRoleChange = async () => {
+    if (!pendingChange) return;
+
+    setShowConfirmModal(false);
+    setShowLoadingModal(true);
+    setProcessingMessage(pendingChange.action === 'add' ? 'Agregando rol...' : 'Eliminando rol...');
+    setProcessedCount(0);
+    setTotalToProcess(1);
+
+    const user = users.find(u => u.id === pendingChange.userId);
+    setCurrentProcessingUser(user?.username || 'Usuario');
+
+    try {
+      if (pendingChange.action === 'add') {
+        await adminService.assignMultipleRoles(pendingChange.userId, [pendingChange.role]);
+      } else {
+        await adminService.removeRoles(pendingChange.userId, [pendingChange.role]);
+      }
+      setProcessedCount(1);
+      await fetchUsers();
+    } catch (err) {
+      console.error('Error al cambiar rol:', err);
+      setError('Error al actualizar el rol');
+    }
+
+    setTimeout(() => {
+      setShowLoadingModal(false);
+      setProcessingMessage('');
+      setCurrentProcessingUser('');
+      setProcessedCount(0);
+      setPendingChange(null);
+    }, 500);
+  };
+
+  const getRoleBadge = (role: string) => {
+    const roleConfig = availableRoles.find(r => r.value === role);
+    if (!roleConfig) return null;
     
     return (
-      <Badge bg={config.bg} className="px-2 py-1 d-inline-flex align-items-center">
-        {config.icon}
-        {config.label}
+      <Badge 
+        bg={roleConfig.bg} 
+        className="px-2 py-1 d-inline-flex align-items-center me-1 mb-1"
+        style={{ fontSize: '0.75rem' }}
+      >
+        {roleConfig.icon}
+        {roleConfig.label}
       </Badge>
+    );
+  };
+
+  const getUserRoles = (user: User) => {
+    const roles = user.roles || [];
+    
+    if (roles.length === 0) {
+      return <Badge bg="secondary" className="px-2 py-1">Sin rol</Badge>;
+    }
+
+    return (
+      <div className="d-flex flex-wrap gap-1">
+        {roles.map(role => getRoleBadge(role))}
+      </div>
     );
   };
 
@@ -190,12 +279,24 @@ const Users: React.FC = () => {
   const getRoleCounts = () => {
     const counts = {
       total: users.length,
-      admin: users.filter(u => u.role_name === 'admin').length,
-      maestro: users.filter(u => u.role_name === 'maestro').length,
-      alumno: users.filter(u => u.role_name === 'alumno').length,
-      sinRol: users.filter(u => !u.role_name).length
+      admin: users.filter(u => u.roles?.includes('admin')).length,
+      maestro: users.filter(u => u.roles?.includes('maestro')).length,
+      alumno: users.filter(u => u.roles?.includes('alumno')).length,
+      sinRol: users.filter(u => !u.roles || u.roles.length === 0).length
     };
     return counts;
+  };
+
+  const handleSort = (key: string) => {
+    setSortConfig(prev => ({
+      key,
+      direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
+    }));
+  };
+
+  const getSortIcon = (key: string) => {
+    if (sortConfig.key !== key) return null;
+    return sortConfig.direction === 'asc' ? <SortUp className="ms-1" size={14} /> : <SortDown className="ms-1" size={14} />;
   };
 
   if (loading) return <LoadingSpinner />;
@@ -203,192 +304,319 @@ const Users: React.FC = () => {
   const counts = getRoleCounts();
 
   return (
-    <div className="container-fluid px-0 py-3 vh-100 d-flex flex-column">
-      {/* Header compacto */}
-      <div className="d-flex justify-content-between align-items-center mb-3">
+    <div className="container-fluid px-0 py-3 min-vh-100 d-flex flex-column">
+      {/* Header con título */}
+      <div className="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4 gap-3">
         <div>
-          <h4 className="mb-1">Gestión de Usuarios</h4>
-          <small className="text-muted">
-            <People className="me-1" size={14} />
-            Total: <strong>{counts.total}</strong> usuarios
-          </small>
+          <h2 className="mb-1 d-flex align-items-center">
+            <People className="me-2 text-primary" size={32} />
+            Gestión de Usuarios
+          </h2>
+          <div className="d-flex align-items-center text-muted small flex-wrap gap-2">
+            <InfoCircle className="me-1" size={14} />
+            <span>Total: <strong>{counts.total}</strong> usuarios</span>
+            <span className="badge bg-light text-dark d-inline-flex align-items-center">
+              <Shield className="text-danger me-1" size={12} /> {counts.admin}
+            </span>
+            <span className="badge bg-light text-dark d-inline-flex align-items-center">
+              <PersonVcard className="text-warning me-1" size={12} /> {counts.maestro}
+            </span>
+            <span className="badge bg-light text-dark d-inline-flex align-items-center">
+              <PersonBadge className="text-success me-1" size={12} /> {counts.alumno}
+            </span>
+          </div>
         </div>
-        <Button variant="outline-primary" size="sm" onClick={fetchUsers}>
-          <ArrowRepeat className="me-2" /> Actualizar
-        </Button>
+        <div className="d-flex gap-2">
+          <Button variant="primary" size="sm" onClick={fetchUsers} className="d-flex align-items-center">
+            <ArrowRepeat className="me-2" /> Actualizar
+          </Button>
+        </div>
       </div>
 
-      {error && <Alert variant="danger" size="sm" onClose={() => setError('')} dismissible>{error}</Alert>}
+      {error && <Alert variant="danger" onClose={() => setError('')} dismissible className="mb-4">{error}</Alert>}
 
-      {/* Stats Cards compactas */}
-      <Row className="mb-3 g-2">
-        <Col xs={6} sm={3} md={2}>
-          <Card className="text-center border-primary">
-            <Card.Body className="p-2">
-              <Shield className="text-danger mb-1" size={18} />
-              <h6 className="mb-0">{counts.admin}</h6>
-              <small className="text-muted">Admins</small>
+      {/* Stats Cards */}
+      <Row className="mb-4 g-3">
+        <Col xs={6} md={3}>
+          <Card className="border-0 shadow-sm h-100">
+            <Card.Body className="p-3">
+              <div className="d-flex align-items-center">
+                <div className="bg-danger bg-opacity-10 p-3 rounded-circle me-3">
+                  <Shield className="text-danger" size={24} />
+                </div>
+                <div>
+                  <h6 className="mb-0 fw-bold">{counts.admin}</h6>
+                  <small className="text-muted">Administradores</small>
+                </div>
+              </div>
             </Card.Body>
           </Card>
         </Col>
-        <Col xs={6} sm={3} md={2}>
-          <Card className="text-center border-warning">
-            <Card.Body className="p-2">
-              <People className="text-warning mb-1" size={18} />
-              <h6 className="mb-0">{counts.maestro}</h6>
-              <small className="text-muted">Maestros</small>
+        <Col xs={6} md={3}>
+          <Card className="border-0 shadow-sm h-100">
+            <Card.Body className="p-3">
+              <div className="d-flex align-items-center">
+                <div className="bg-warning bg-opacity-10 p-3 rounded-circle me-3">
+                  <PersonVcard className="text-warning" size={24} />
+                </div>
+                <div>
+                  <h6 className="mb-0 fw-bold">{counts.maestro}</h6>
+                  <small className="text-muted">Maestros</small>
+                </div>
+              </div>
             </Card.Body>
           </Card>
         </Col>
-        <Col xs={6} sm={3} md={2}>
-          <Card className="text-center border-success">
-            <Card.Body className="p-2">
-              <People className="text-success mb-1" size={18} />
-              <h6 className="mb-0">{counts.alumno}</h6>
-              <small className="text-muted">Alumnos</small>
+        <Col xs={6} md={3}>
+          <Card className="border-0 shadow-sm h-100">
+            <Card.Body className="p-3">
+              <div className="d-flex align-items-center">
+                <div className="bg-success bg-opacity-10 p-3 rounded-circle me-3">
+                  <PersonBadge className="text-success" size={24} />
+                </div>
+                <div>
+                  <h6 className="mb-0 fw-bold">{counts.alumno}</h6>
+                  <small className="text-muted">Alumnos</small>
+                </div>
+              </div>
             </Card.Body>
           </Card>
         </Col>
-        <Col xs={6} sm={3} md={2}>
-          <Card className="text-center border-secondary">
-            <Card.Body className="p-2">
-              <ExclamationTriangle className="text-secondary mb-1" size={18} />
-              <h6 className="mb-0">{counts.sinRol}</h6>
-              <small className="text-muted">Sin rol</small>
-            </Card.Body>
-          </Card>
-        </Col>
-        <Col xs={12} sm={12} md={4}>
-          <Card className="h-100 bg-light">
-            <Card.Body className="p-2 d-flex align-items-center">
-              <Gear className="text-primary me-2" size={20} />
-              <div>
-                <small className="text-muted d-block">Visibles</small>
-                <strong>{filteredUsers.length}/{counts.total}</strong>
+        <Col xs={6} md={3}>
+          <Card className="border-0 shadow-sm h-100">
+            <Card.Body className="p-3">
+              <div className="d-flex align-items-center">
+                <div className="bg-secondary bg-opacity-10 p-3 rounded-circle me-3">
+                  <ExclamationTriangle className="text-secondary" size={24} />
+                </div>
+                <div>
+                  <h6 className="mb-0 fw-bold">{counts.sinRol}</h6>
+                  <small className="text-muted">Sin rol</small>
+                </div>
               </div>
             </Card.Body>
           </Card>
         </Col>
       </Row>
 
-      {/* Barra de selección masiva compacta */}
+      {/* Barra de selección masiva */}
       {selectedIds.size > 0 && (
-        <Card className="mb-3 border-primary bg-light">
-          <Card.Body className="py-2">
-            <Row className="align-items-center g-2">
-              <Col xs="auto">
-                <Badge bg="primary" className="px-2 py-1 d-inline-flex align-items-center">
-                  <Check2Square className="me-1" size={12} />
-                  {selectedIds.size} seleccionado{selectedIds.size !== 1 ? 's' : ''}
-                </Badge>
-              </Col>
-              <Col>
-                <div className="d-flex gap-2 justify-content-end">
-                  <Button variant="outline-secondary" size="sm" onClick={clearSelection}>
-                    <X className="me-1" size={14} /> Limpiar
-                  </Button>
-                  <Button variant="outline-danger" size="sm" onClick={() => prepareBulkRoleChange('admin')}>
-                    <Shield className="me-1" size={14} /> Admin
-                  </Button>
-                  <Button variant="outline-warning" size="sm" onClick={() => prepareBulkRoleChange('maestro')}>
-                    <People className="me-1" size={14} /> Maestro
-                  </Button>
-                  <Button variant="outline-success" size="sm" onClick={() => prepareBulkRoleChange('alumno')}>
-                    <People className="me-1" size={14} /> Alumno
-                  </Button>
+        <Card className="mb-4 border-primary border-2">
+          <Card.Body className="p-3">
+            <div className="d-flex flex-column flex-md-row align-items-center justify-content-between gap-3">
+              <div className="d-flex align-items-center">
+                <div className="bg-primary bg-opacity-10 p-2 rounded-circle me-3">
+                  <Check2Square className="text-primary" size={20} />
                 </div>
-              </Col>
-            </Row>
+                <div>
+                  <h6 className="mb-0">{selectedIds.size} usuario{selectedIds.size !== 1 ? 's' : ''} seleccionado{selectedIds.size !== 1 ? 's' : ''}</h6>
+                  <small className="text-muted">Acciones masivas disponibles</small>
+                </div>
+              </div>
+              <div className="d-flex gap-2">
+                <Button variant="outline-secondary" size="sm" onClick={clearSelection} className="d-flex align-items-center">
+                  <X className="me-2" /> Limpiar
+                </Button>
+                <Button variant="outline-danger" size="sm" className="d-flex align-items-center">
+                  <Trash className="me-2" /> Quitar roles
+                </Button>
+              </div>
+            </div>
           </Card.Body>
         </Card>
       )}
 
-      {/* Filtros compactos */}
-      <Card className="mb-3">
-        <Card.Body className="p-2">
-          <Row className="g-2">
-            <Col md={6}>
-              <InputGroup size="sm">
-                <InputGroup.Text>
-                  <Search size={14} />
-                </InputGroup.Text>
-                <Form.Control
-                  type="text"
-                  placeholder="Buscar usuario, nombre o email..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-                {searchTerm && (
-                  <Button variant="outline-secondary" size="sm" onClick={() => setSearchTerm('')}>
-                    <X size={14} />
+      {/* Filtros - Versión desktop */}
+      <Card className="mb-4 d-none d-md-block">
+        <Card.Header className="bg-light py-3 d-flex justify-content-between align-items-center">
+          <span className="fw-bold d-flex align-items-center">
+            <Filter className="me-2" size={16} />
+            Filtros de búsqueda
+          </span>
+          <Button 
+            variant="link" 
+            onClick={() => setShowFilters(!showFilters)}
+            className="text-decoration-none p-0"
+          >
+            {showFilters ? 'Ocultar' : 'Mostrar'}
+          </Button>
+        </Card.Header>
+        {showFilters && (
+          <Card.Body className="p-3">
+            <Row className="g-3">
+              <Col md={5}>
+                <Form.Group>
+                  <Form.Label className="small fw-bold">Buscar</Form.Label>
+                  <InputGroup>
+                    <InputGroup.Text>
+                      <Search size={14} />
+                    </InputGroup.Text>
+                    <Form.Control
+                      type="text"
+                      placeholder="Nombre, email, ID..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                    {searchTerm && (
+                      <Button variant="outline-secondary" onClick={() => setSearchTerm('')}>
+                        <X size={14} />
+                      </Button>
+                    )}
+                  </InputGroup>
+                </Form.Group>
+              </Col>
+              <Col md={3}>
+                <Form.Group>
+                  <Form.Label className="small fw-bold">Rol</Form.Label>
+                  <Form.Select value={filterRole} onChange={(e) => setFilterRole(e.target.value)}>
+                    <option value="todos">Todos los roles</option>
+                    <option value="admin">Administradores ({counts.admin})</option>
+                    <option value="maestro">Maestros ({counts.maestro})</option>
+                    <option value="alumno">Alumnos ({counts.alumno})</option>
+                    <option value="sin-rol">Sin rol ({counts.sinRol})</option>
+                  </Form.Select>
+                </Form.Group>
+              </Col>
+              <Col md={2}>
+                <Form.Group>
+                  <Form.Label className="small fw-bold">Estado</Form.Label>
+                  <Form.Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+                    <option value="todos">Todos</option>
+                    <option value="activo">Activos</option>
+                    <option value="suspendido">Suspendidos</option>
+                    <option value="no-confirmado">No confirmados</option>
+                    <option value="eliminado">Eliminados</option>
+                  </Form.Select>
+                </Form.Group>
+              </Col>
+              <Col md={2}>
+                <Form.Group>
+                  <Form.Label className="small fw-bold">&nbsp;</Form.Label>
+                  <Button 
+                    variant="outline-primary" 
+                    onClick={handleSelectAll}
+                    className="w-100 d-flex align-items-center justify-content-center"
+                  >
+                    <Check2Square className="me-2" size={14} />
+                    {selectAll ? 'Deseleccionar todo' : 'Seleccionar todo'}
                   </Button>
-                )}
-              </InputGroup>
-            </Col>
-            <Col md={4}>
-              <InputGroup size="sm">
-                <InputGroup.Text>
-                  <Filter size={14} />
-                </InputGroup.Text>
-                <Form.Select 
-                  value={filterRole} 
-                  onChange={(e) => setFilterRole(e.target.value)}
-                >
-                  <option value="todos">Todos ({counts.total})</option>
-                  <option value="admin">Admins ({counts.admin})</option>
-                  <option value="maestro">Maestros ({counts.maestro})</option>
-                  <option value="alumno">Alumnos ({counts.alumno})</option>
-                  <option value="sin-rol">Sin rol ({counts.sinRol})</option>
-                </Form.Select>
-              </InputGroup>
-            </Col>
-            <Col md={2}>
-              <Button 
-                variant="outline-primary" 
-                size="sm"
-                onClick={handleSelectAll}
-                className="w-100"
-              >
-                <Check2Square className="me-1" size={14} />
-                {selectAll ? 'Deseleccionar' : 'Seleccionar'}
-              </Button>
-            </Col>
-          </Row>
-        </Card.Body>
+                </Form.Group>
+              </Col>
+            </Row>
+          </Card.Body>
+        )}
       </Card>
 
-      {/* Tabla con scroll optimizado */}
-      <Card className="flex-grow-1 d-flex flex-column">
-        <Card.Header className="bg-light py-2">
-          <div className="d-flex justify-content-between align-items-center">
+      {/* Filtros - Versión móvil */}
+      <div className="d-block d-md-none mb-4">
+        <Button 
+          variant="outline-primary" 
+          onClick={() => setShowMobileFilters(!showMobileFilters)}
+          className="w-100 d-flex align-items-center justify-content-between mb-2"
+        >
+          <span className="d-flex align-items-center">
+            <Filter className="me-2" size={16} />
+            Filtros de búsqueda
+          </span>
+          {showMobileFilters ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+        </Button>
+        
+        {showMobileFilters && (
+          <Card>
+            <Card.Body className="p-3">
+              <div className="d-flex flex-column gap-3">
+                <InputGroup>
+                  <InputGroup.Text>
+                    <Search size={14} />
+                  </InputGroup.Text>
+                  <Form.Control
+                    type="text"
+                    placeholder="Buscar..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </InputGroup>
+                
+                <Form.Select value={filterRole} onChange={(e) => setFilterRole(e.target.value)}>
+                  <option value="todos">Todos los roles</option>
+                  <option value="admin">Administradores</option>
+                  <option value="maestro">Maestros</option>
+                  <option value="alumno">Alumnos</option>
+                  <option value="sin-rol">Sin rol</option>
+                </Form.Select>
+                
+                <Form.Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+                  <option value="todos">Todos los estados</option>
+                  <option value="activo">Activos</option>
+                  <option value="suspendido">Suspendidos</option>
+                  <option value="no-confirmado">No confirmados</option>
+                </Form.Select>
+                
+                <Button 
+                  variant="outline-primary" 
+                  onClick={handleSelectAll}
+                  className="w-100"
+                >
+                  {selectAll ? 'Deseleccionar todo' : 'Seleccionar todo'}
+                </Button>
+              </div>
+            </Card.Body>
+          </Card>
+        )}
+      </div>
+
+      {/* Tabla de usuarios con scroll */}
+      <Card className="flex-grow-1 shadow-sm d-flex flex-column">
+        <Card.Header className="bg-light py-3 d-flex justify-content-between align-items-center">
+          <div className="d-flex align-items-center">
+            <People className="me-2 text-primary" size={16} />
             <span className="fw-bold">Lista de Usuarios</span>
-            {selectedIds.size > 0 && (
-              <Badge bg="primary" className="px-2 py-1">
-                <Check2Square className="me-1" size={12} />
-                {selectedIds.size} seleccionados
-              </Badge>
-            )}
+            <Badge bg="light" text="dark" className="ms-2">
+              {filteredUsers.length} de {users.length}
+            </Badge>
           </div>
+          {selectedIds.size > 0 && (
+            <Badge bg="primary" className="d-flex align-items-center">
+              <Check2Square className="me-1" size={12} />
+              {selectedIds.size} selec.
+            </Badge>
+          )}
         </Card.Header>
-        <Card.Body className="p-0 overflow-auto" style={{ maxHeight: 'calc(100vh - 320px)' }}>
-          <Table size="sm" striped hover className="mb-0">
-            <thead className="bg-light sticky-top" style={{ top: 0 }}>
+        
+        <div className="table-responsive" style={{ maxHeight: 'calc(100vh - 450px)', overflowY: 'auto' }}>
+          <Table hover className="mb-0 align-middle">
+            <thead className="bg-light" style={{ position: 'sticky', top: 0, zIndex: 1 }}>
               <tr>
                 <th width="40" className="text-center">
-                  <Form.Check type="checkbox" checked={selectAll} onChange={handleSelectAll} />
+                  <Form.Check 
+                    type="checkbox" 
+                    checked={selectAll} 
+                    onChange={handleSelectAll}
+                  />
                 </th>
-                <th>ID</th>
-                <th>Usuario</th>
-                <th>Nombre</th>
-                <th>Email</th>
-                <th>Rol</th>
+                <th className="cursor-pointer" onClick={() => handleSort('id')}>
+                  <div className="d-flex align-items-center">
+                    <Hash size={14} className="me-1" />
+                    ID {getSortIcon('id')}
+                  </div>
+                </th>
+                <th className="cursor-pointer" onClick={() => handleSort('username')}>
+                  Usuario {getSortIcon('username')}
+                </th>
+                <th className="cursor-pointer d-none d-md-table-cell" onClick={() => handleSort('nombre')}>
+                  Nombre {getSortIcon('nombre')}
+                </th>
+                <th className="d-none d-lg-table-cell">Email</th>
+                <th style={{ minWidth: '250px' }}>Roles</th>
                 <th>Estado</th>
-                <th width="90">Acciones</th>
               </tr>
             </thead>
             <tbody>
               {filteredUsers.map((user) => (
-                <tr key={user.id} className={selectedIds.has(user.id) ? 'table-primary' : ''}>
+                <tr 
+                  key={user.id} 
+                  className={selectedIds.has(user.id) ? 'table-primary' : ''}
+                >
                   <td className="text-center">
                     <Form.Check
                       type="checkbox"
@@ -397,124 +625,179 @@ const Users: React.FC = () => {
                     />
                   </td>
                   <td>
-                    <Badge bg="light" text="dark" className="px-1 py-0">#{user.id}</Badge>
+                    <Badge bg="light" text="dark" className="px-2 py-1">
+                      #{user.id}
+                    </Badge>
                   </td>
-                  <td><small>{user.username}</small></td>
-                  <td><small>{user.firstname} {user.lastname}</small></td>
-                  <td><small className="text-muted">{user.email}</small></td>
-                  <td>{getRoleBadge(user.role_name)}</td>
-                  <td>{getStatusBadge(user)}</td>
                   <td>
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      onClick={() => prepareSingleRoleChange(user)}
-                      className="w-100 py-0"
+                    <OverlayTrigger
+                      placement="top"
+                      overlay={<Tooltip>@{user.username}</Tooltip>}
                     >
-                      <Gear size={12} />
-                    </Button>
+                      <span className="fw-semibold">@{user.username}</span>
+                    </OverlayTrigger>
                   </td>
+                  <td className="d-none d-md-table-cell">
+                    <div className="d-flex align-items-center">
+                      <div className="bg-light rounded-circle p-1 me-2">
+                        <Person size={14} className="text-primary" />
+                      </div>
+                      <span className="text-truncate" style={{ maxWidth: '150px' }}>
+                        {user.firstname} {user.lastname}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="d-none d-lg-table-cell">
+                    <small className="text-muted d-flex align-items-center">
+                      <Envelope className="me-1" size={12} />
+                      <span className="text-truncate" style={{ maxWidth: '180px' }}>
+                        {user.email}
+                      </span>
+                    </small>
+                  </td>
+                  <td>
+                    <div className="d-flex flex-column gap-2">
+                      <div className="d-flex flex-wrap">
+                        {getUserRoles(user)}
+                      </div>
+                      <div className="d-flex gap-2">
+                        {availableRoles.map(role => {
+                          const isChecked = user.roles?.includes(role.value) || false;
+                          const isSelfAdmin = role.value === 'admin' && currentUser?.id === user.id;
+                          
+                          return (
+                            <Form.Check
+                              key={role.value}
+                              type="checkbox"
+                              id={`role-${user.id}-${role.value}`}
+                              label={role.icon}
+                              checked={isChecked}
+                              onChange={(e) => handleRoleChange(user.id, role.value, e.target.checked, user.roles || [])}
+                              disabled={isSelfAdmin}
+                              inline
+                              title={isSelfAdmin ? "No puedes modificar tu propio rol de admin" : ""}
+                            />
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </td>
+                  <td>{getStatusBadge(user)}</td>
                 </tr>
               ))}
               {filteredUsers.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="text-center py-4">
-                    <People size={32} className="text-muted mb-2" />
-                    <p className="text-muted small mb-0">No se encontraron usuarios</p>
+                  <td colSpan={7} className="text-center py-5">
+                    <People size={48} className="text-muted mb-3" />
+                    <h6 className="text-muted">No se encontraron usuarios</h6>
+                    <p className="text-muted small mb-0">Intenta con otros filtros</p>
                   </td>
                 </tr>
               )}
             </tbody>
           </Table>
-        </Card.Body>
-        <Card.Footer className="bg-white py-1">
-          <small className="text-muted">
-            Mostrando {filteredUsers.length} de {users.length} usuarios
-          </small>
+        </div>
+        
+        <Card.Footer className="bg-white py-3 mt-auto">
+          <div className="d-flex flex-column flex-md-row justify-content-between align-items-center gap-2">
+            <small className="text-muted">
+              Mostrando <strong>{filteredUsers.length}</strong> de <strong>{users.length}</strong> usuarios
+            </small>
+            <div className="d-flex gap-2">
+              <Badge bg="light" text="dark" className="px-3 py-2 d-flex align-items-center">
+                <People className="me-1" size={12} /> {users.length}
+              </Badge>
+              <Badge bg="light" text="dark" className="px-3 py-2 d-flex align-items-center">
+                <Check2Square className="me-1" size={12} /> {selectedIds.size}
+              </Badge>
+            </div>
+          </div>
         </Card.Footer>
       </Card>
 
-      {/* Modales simplificados */}
-      <Modal show={showModal} onHide={() => !updating && setShowModal(false)} centered size="sm">
-        <Modal.Header closeButton={!updating} className="bg-light py-2">
-          <Modal.Title className="fs-6">
-            <Gear className="me-1 text-primary" size={16} />
-            {selectedUsers.length > 1 ? 'Cambio masivo' : 'Cambiar rol'}
+      {/* Modal de confirmación */}
+      <Modal show={showConfirmModal} onHide={() => setShowConfirmModal(false)} centered>
+        <Modal.Header closeButton className="bg-light">
+          <Modal.Title className="d-flex align-items-center">
+            <QuestionCircle className="me-2 text-warning" size={24} />
+            Confirmar cambio
           </Modal.Title>
         </Modal.Header>
-        <Modal.Body className="py-2">
-          {selectedUsers.length > 1 ? (
+        <Modal.Body>
+          {pendingChange && (
             <>
-              <Alert variant="info" className="py-1 px-2 mb-2 small">
-                {selectedUsers.length} usuarios seleccionados
-              </Alert>
-              <div className="small mb-2" style={{ maxHeight: '100px', overflowY: 'auto' }}>
-                {selectedUsers.map((user, i) => (
-                  <div key={user.id} className="d-flex justify-content-between">
-                    <span>{user.username}</span>
-                    {getRoleBadge(user.currentRole)}
-                  </div>
-                ))}
+              <p className="text-center mb-3">
+                {pendingChange.action === 'add' ? (
+                  <>¿Agregar el rol <strong className="text-success">de</strong></>
+                ) : (
+                  <>¿Quitar el rol <strong className="text-danger">de</strong></>
+                )}
+              </p>
+              <div className="text-center mb-3">
+                {availableRoles.find(r => r.value === pendingChange.role) && (
+                  <Badge 
+                    bg={availableRoles.find(r => r.value === pendingChange.role)?.bg}
+                    className="px-4 py-2"
+                    style={{ fontSize: '1.1rem' }}
+                  >
+                    {availableRoles.find(r => r.value === pendingChange.role)?.icon}
+                    {availableRoles.find(r => r.value === pendingChange.role)?.label}
+                  </Badge>
+                )}
               </div>
+              <p className="text-center mb-0">
+                al usuario <strong>{users.find(u => u.id === pendingChange.userId)?.username}</strong>?
+              </p>
             </>
-          ) : (
-            <div className="text-center mb-2">
-              <small className="text-muted">Usuario: <strong>{selectedUsers[0]?.username}</strong></small>
-            </div>
           )}
-          <Form.Select
-            size="sm"
-            value={selectedRole}
-            onChange={(e) => setSelectedRole(e.target.value)}
-          >
-            <option value="">Nuevo rol...</option>
-            <option value="admin">Admin</option>
-            <option value="maestro">Maestro</option>
-            <option value="alumno">Alumno</option>
-          </Form.Select>
         </Modal.Body>
-        <Modal.Footer className="py-1">
-          <Button size="sm" variant="secondary" onClick={() => setShowModal(false)} disabled={updating}>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowConfirmModal(false)}>
             Cancelar
           </Button>
-          <Button size="sm" variant="primary" onClick={handleAssignRole} disabled={!selectedRole}>
-            <Check2 className="me-1" size={12} /> Confirmar
+          <Button 
+            variant={pendingChange?.action === 'add' ? 'success' : 'danger'}
+            onClick={executeRoleChange}
+            className="d-flex align-items-center"
+          >
+            {pendingChange?.action === 'add' ? (
+              <>
+                <CheckCircle className="me-2" /> Confirmar
+              </>
+            ) : (
+              <>
+                <Trash className="me-2" /> Confirmar
+              </>
+            )}
           </Button>
         </Modal.Footer>
       </Modal>
 
-      {/* Modal de progreso simplificado */}
-      <Modal show={showConfirmModal} backdrop="static" keyboard={false} centered size="sm">
-        <Modal.Header className="bg-light py-2">
-          <Modal.Title className="fs-6">Procesando...</Modal.Title>
-        </Modal.Header>
-        <Modal.Body className="py-2">
-          {updating ? (
-            <>
-              <LoadingSpinner />
-              <div className="text-center small mt-2">
-                <div>{currentUser}</div>
-                <ProgressBar 
-                  now={(processedCount / totalToProcess) * 100} 
-                  size="sm"
-                  className="mt-2"
-                />
-              </div>
-            </>
-          ) : (
-            <div className="text-center">
-              <Check2 size={32} className="text-success mb-2" />
-              <p className="small mb-0">{processedCount} usuarios actualizados</p>
+      {/* Modal de carga */}
+      <Modal show={showLoadingModal} backdrop="static" keyboard={false} centered>
+        <Modal.Body className="text-center py-4">
+          <div className="mb-4">
+            <div className="spinner-border text-primary" role="status" style={{ width: '3rem', height: '3rem' }}>
+              <span className="visually-hidden">Cargando...</span>
             </div>
+          </div>
+          <h6 className="mb-2">{processingMessage}</h6>
+          <p className="text-muted small mb-3">{currentProcessingUser}</p>
+          {totalToProcess > 0 && (
+            <>
+              <ProgressBar 
+                now={(processedCount / totalToProcess) * 100} 
+                label={`${processedCount}/${totalToProcess}`}
+                className="mb-2"
+                striped
+                animated
+              />
+              <small className="text-muted">
+                {Math.round((processedCount / totalToProcess) * 100)}% completado
+              </small>
+            </>
           )}
         </Modal.Body>
-        {!updating && (
-          <Modal.Footer className="py-1">
-            <Button size="sm" variant="primary" onClick={() => setShowConfirmModal(false)}>
-              Cerrar
-            </Button>
-          </Modal.Footer>
-        )}
       </Modal>
     </div>
   );

@@ -5,7 +5,8 @@ import { classService } from '../../services/classService';
 import { Clase, getDiaSemanaNombre } from '../../interfaces';
 import { useMexicoDateTime } from '../../hooks/useMexicoDateTime';
 import LoadingSpinner from '../../components/LoadingSpinner';
-import { People, Clock, Calendar, CheckCircle, XCircle, InfoCircle } from 'react-bootstrap-icons';
+import SolicitarReprogramacion from './SolicitarReprogramacion';
+import { People, Clock, Calendar, CheckCircle, XCircle, InfoCircle, CalendarPlus } from 'react-bootstrap-icons';
 
 const MaestroClases: React.FC = () => {
   const [clases, setClases] = useState<Clase[]>([]);
@@ -13,6 +14,8 @@ const MaestroClases: React.FC = () => {
   const [error, setError] = useState('');
   const [estadisticas, setEstadisticas] = useState<Map<number, any>>(new Map());
   const [cargandoEstadisticas, setCargandoEstadisticas] = useState(false);
+  const [showReprogramacionModal, setShowReprogramacionModal] = useState(false);
+  const [selectedClaseForReprogramacion, setSelectedClaseForReprogramacion] = useState<number | null>(null);
   
   const { getMexicoDateString, puedeMarcarAsistencia, mexicoTime, getHorarioHoy } = useMexicoDateTime();
 
@@ -206,7 +209,7 @@ const MaestroClases: React.FC = () => {
 
                   <Card.Footer className="bg-white">
                     <Row className="g-2">
-                      <Col xs={12}>
+                      <Col xs={6}>
                         <Button
                           as={Link as any}
                           to={`/maestro/asistencias/${clase.id}`}
@@ -218,6 +221,19 @@ const MaestroClases: React.FC = () => {
                           {stats.puedeMarcar ? 'Asistencia' : 'Ver asistencias'}
                         </Button>
                       </Col>
+                      <Col xs={6}>
+                        <Button
+                          variant="outline-warning"
+                          size="sm"
+                          className="w-100 d-inline-flex align-items-center justify-content-center"
+                          onClick={() => {
+                            setSelectedClaseForReprogramacion(clase.id);
+                            setShowReprogramacionModal(true);
+                          }}
+                        >
+                          <CalendarPlus className="me-2" /> Reprogramar
+                        </Button>
+                      </Col>
                     </Row>
                   </Card.Footer>
                 </Card>
@@ -226,6 +242,19 @@ const MaestroClases: React.FC = () => {
           })}
         </Row>
       )}
+
+      <SolicitarReprogramacion
+        show={showReprogramacionModal}
+        onHide={() => {
+          setShowReprogramacionModal(false);
+          setSelectedClaseForReprogramacion(null);
+        }}
+        claseId={selectedClaseForReprogramacion || 0}
+        onSuccess={() => {
+          fetchClases();
+          setShowReprogramacionModal(false);
+        }}
+      />
     </div>
   );
 };

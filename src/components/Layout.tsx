@@ -24,14 +24,20 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  const toggleSidebar = () => {
+    setSidebarOpen(!sidebarOpen);
+  };
+
   return (
     <>
-      <button 
-        className="mobile-menu-btn"
-        onClick={() => setSidebarOpen(!sidebarOpen)}
-      >
-        <List size={24} />
-      </button>
+      {isMobile && (
+        <button 
+          className="mobile-menu-btn"
+          onClick={toggleSidebar}
+        >
+          <List size={24} />
+        </button>
+      )}
 
       <SidebarResponsive 
         isOpen={sidebarOpen} 
@@ -39,8 +45,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       />
 
       <div className={`main-content ${sidebarOpen && isMobile ? 'expanded' : ''}`}>
-        <Navbar />
-        <Container className="mt-4">
+        <Navbar toggleSidebar={toggleSidebar} />
+        <Container className="mt-4 mt-md-5 px-3 px-md-4">
           {children}
         </Container>
       </div>

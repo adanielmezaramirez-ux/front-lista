@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Button, Modal, Form, Alert, Badge, Card, Row, Col, ListGroup } from 'react-bootstrap';
+import { Table, Button, Modal, Form, Alert, Badge, Card, Row, Col } from 'react-bootstrap';
 import { adminService } from '../../services/adminService';
 import { Clase, User, Horario, DIAS_SEMANA, getDiaSemanaNombre } from '../../interfaces';
 import LoadingSpinner from '../../components/LoadingSpinner';
@@ -12,7 +12,6 @@ import {
   PersonCheck, 
   Info,
   Envelope,
-  Calendar,
   Plus,
   Save,
   X,
@@ -59,7 +58,23 @@ const AdminClasses: React.FC = () => {
         adminService.getUsers()
       ]);
       
-      setUsers(usersData);
+      const processedUsers = usersData.map(user => {
+        if (user.roles && Array.isArray(user.roles)) {
+          return user;
+        }
+        if (user.role_name) {
+          return {
+            ...user,
+            roles: [user.role_name]
+          };
+        }
+        return {
+          ...user,
+          roles: []
+        };
+      });
+
+      setUsers(processedUsers);
       setClases(clasesData);
       setError('');
     } catch (error) {
@@ -178,17 +193,25 @@ const AdminClasses: React.FC = () => {
     }
   };
 
-  const getMaestros = () => users.filter(u => u.role === 'maestro');
+  const getMaestros = () => {
+    return users.filter(u => u.roles?.includes('maestro'));
+  };
+
+  const getAlumnos = () => {
+    return users.filter(u => u.roles?.includes('alumno'));
+  };
 
   const getAlumnosDisponibles = (clase: Clase | null) => {
     if (!clase) return [];
     const alumnosInscritosIds = new Set(clase.alumnos?.map(a => a.id) || []);
-    return users
-      .filter(u => u.role === 'alumno')
-      .filter(alumno => !alumnosInscritosIds.has(alumno.id));
+    return getAlumnos().filter(alumno => !alumnosInscritosIds.has(alumno.id));
   };
 
-  const getAlumnos = () => users.filter(u => u.role === 'alumno');
+  const getMaestrosDisponibles = (clase: Clase | null) => {
+    if (!clase) return getMaestros();
+    const maestrosAsignadosIds = new Set(clase.maestros?.map(m => m.id) || []);
+    return getMaestros().filter(maestro => !maestrosAsignadosIds.has(maestro.id));
+  };
 
   if (loading) return <LoadingSpinner />;
 
@@ -688,38 +711,69 @@ const AdminClasses: React.FC = () => {
           </Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          <Form.Group>
-            <Form.Label className="fw-bold">Seleccionar maestros</Form.Label>
-            {getMaestros().length === 0 ? (
-              <Alert variant="warning">No hay maestros disponibles</Alert>
-            ) : (
-              <>
-                <Form.Select
-                  multiple
-                  value={selectedMaestros.map(String)}
-                  onChange={(e) => {
-                    const selected = Array.from(e.target.selectedOptions, option => Number(option.value));
-                    setSelectedMaestros(selected);
-                  }}
-                  style={{ minHeight: '200px' }}
-                >
-                  {getMaestros().map((maestro) => (
-                    <option key={maestro.id} value={maestro.id}>
-                      {maestro.firstname} {maestro.lastname} - {maestro.email}
-                    </option>
-                  ))}
-                </Form.Select>
-                <Form.Text className="text-muted">
-                  <small>Ctrl + clic para seleccionar múltiples</small>
-                </Form.Text>
-                <div className="mt-2">
-                  <Badge bg="info" className="px-3 py-2">
-                    Seleccionados: {selectedMaestros.length}
-                  </Badge>
+          {selectedClase && (
+            <>
+              {selectedClase.maestros && selectedClase.maestros.length > 0 && (
+                <div className="mb-4">
+                  <div className="d-flex align-items-center mb-2">
+                    <PersonCheck className="text-success me-2" />
+                    <h6 className="mb-0">Maestros actuales ({selectedClase.maestros.length})</h6>
+                  </div>
+                  <div className="border rounded p-2 bg-light" style={{ maxHeight: '80px', overflowY: 'auto' }}>
+                    {selectedClase.maestros.map(maestro => (
+                      <Badge bg="info" className="me-2 mb-1 px-3 py-2" key={maestro.id}>
+                        {maestro.nombre}
+                      </Badge>
+                    ))}
+                  </div>
                 </div>
-              </>
-            )}
-          </Form.Group>
+              )}
+
+              <Form.Group>
+                <div className="d-flex align-items-center mb-2">
+                  <PersonPlus className="text-primary me-2" />
+                  <Form.Label className="fw-bold mb-0">Maestros disponibles</Form.Label>
+                </div>
+                {getMaestrosDisponibles(selectedClase).length === 0 ? (
+                  <Alert variant="info">
+                    <Info className="me-2" />
+                    No hay maestros disponibles para agregar
+                  </Alert>
+                ) : (
+                  <>
+                    <Form.Select
+                      multiple
+                      value={selectedMaestros.map(String)}
+                      onChange={(e) => {
+                        const selected = Array.from(e.target.selectedOptions, option => Number(option.value));
+                        setSelectedMaestros(selected);
+                      }}
+                      style={{ minHeight: '200px' }}
+                    >
+                      {getMaestrosDisponibles(selectedClase).map((maestro) => (
+                        <option key={maestro.id} value={maestro.id}>
+                          {maestro.firstname} {maestro.lastname} - {maestro.email}
+                        </option>
+                      ))}
+                    </Form.Select>
+                    <Form.Text className="text-muted d-block mb-2">
+                      <small>Ctrl + clic para seleccionar múltiples</small>
+                    </Form.Text>
+                    <div className="d-flex gap-2">
+                      <Badge bg="info" className="px-3 py-2">
+                        Disponibles: {getMaestrosDisponibles(selectedClase).length}
+                      </Badge>
+                      {selectedMaestros.length > 0 && (
+                        <Badge bg="success" className="px-3 py-2">
+                          Seleccionados: {selectedMaestros.length}
+                        </Badge>
+                      )}
+                    </div>
+                  </>
+                )}
+              </Form.Group>
+            </>
+          )}
         </Modal.Body>
         <Modal.Footer className="bg-light">
           <Button variant="secondary" onClick={() => setShowAssignMaestrosModal(false)} className="d-inline-flex align-items-center">

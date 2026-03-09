@@ -47,7 +47,7 @@ interface DashboardData {
 }
 
 const Dashboard: React.FC = () => {
-  const { user } = useAuth();
+  const { user, isAdmin, isMaestro, currentView } = useAuth();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<DashboardData>({});
   const { mexicoTime, getDiaSemanaActual } = useMexicoDateTime();
@@ -55,7 +55,7 @@ const Dashboard: React.FC = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        if (user?.role === 'admin') {
+        if (currentView === 'admin') {
           const [usuarios, clases, asistenciasHoy, asistenciasSemana] = await Promise.all([
             adminService.getUsers(),
             adminService.getClasses(),
@@ -63,10 +63,10 @@ const Dashboard: React.FC = () => {
             classService.getAsistenciasSemana ? classService.getAsistenciasSemana() : []
           ]);
 
-          const totalAdmins = usuarios.filter((u: any) => u.role === 'admin').length;
-          const totalMaestros = usuarios.filter((u: any) => u.role === 'maestro').length;
-          const totalAlumnos = usuarios.filter((u: any) => u.role === 'alumno').length;
-          const usuariosSinRol = usuarios.filter((u: any) => !u.role).length;
+          const totalAdmins = usuarios.filter((u: any) => u.role_name === 'admin' || u.roles?.includes('admin')).length;
+          const totalMaestros = usuarios.filter((u: any) => u.role_name === 'maestro' || u.roles?.includes('maestro')).length;
+          const totalAlumnos = usuarios.filter((u: any) => u.role_name === 'alumno' || u.roles?.includes('alumno')).length;
+          const usuariosSinRol = usuarios.filter((u: any) => !u.role_name && (!u.roles || u.roles.length === 0)).length;
           const usuariosActivos = usuarios.filter((u: any) => !u.suspended && u.confirmed).length;
           const usuariosSuspendidos = usuarios.filter((u: any) => u.suspended).length;
           const usuariosNoConfirmados = usuarios.filter((u: any) => !u.confirmed).length;
@@ -98,7 +98,6 @@ const Dashboard: React.FC = () => {
             })
           );
 
-          // Ordenar clases por ID (asumiendo que IDs más altos son más recientes)
           const ultimasClases = [...clases]
             .sort((a, b) => b.id - a.id)
             .slice(0, 5);
@@ -123,7 +122,7 @@ const Dashboard: React.FC = () => {
             usuariosRecientes: usuarios.slice(0, 5),
             estadisticasClases: estadisticasClases.filter(Boolean)
           });
-        } else if (user?.role === 'maestro') {
+        } else if (currentView === 'maestro') {
           const [userData, clases] = await Promise.all([
             usersService.getUserData(),
             classService.getMisClases()
@@ -145,12 +144,12 @@ const Dashboard: React.FC = () => {
       }
     };
 
-    if (user) {
+    if (user && currentView) {
       fetchData();
     } else {
       setLoading(false);
     }
-  }, [user]);
+  }, [user, currentView]);
 
   if (loading) {
     return (
@@ -174,7 +173,7 @@ const Dashboard: React.FC = () => {
     );
   }
 
-  if (user.role === 'admin') {
+  if (currentView === 'admin') {
     return (
       <div className="container-fluid px-0">
         <Row className="mb-4 align-items-center">
@@ -196,7 +195,7 @@ const Dashboard: React.FC = () => {
           <Col md="auto">
             <Badge bg="primary" className="px-4 py-3">
               <GraphUp className="me-2" size={16} />
-              Sistema activo
+              Vista Administrador
             </Badge>
           </Col>
         </Row>
@@ -323,23 +322,26 @@ const Dashboard: React.FC = () => {
               </Card.Header>
               <Card.Body style={{ maxHeight: '300px', overflowY: 'auto' }}>
                 {data.usuariosRecientes && data.usuariosRecientes.length > 0 ? (
-                  data.usuariosRecientes.map((user: any) => (
-                    <div key={user.id} className="d-flex align-items-center mb-2 p-2 border rounded">
-                      <div className="bg-light rounded-circle p-2 me-3">
-                        <Person size={16} className="text-primary" />
-                      </div>
-                      <div className="flex-grow-1">
-                        <div className="fw-bold small">{user.firstname} {user.lastname}</div>
-                        <div className="d-flex align-items-center small text-muted">
-                          <Envelope className="me-1" size={10} />
-                          {user.email}
+                  data.usuariosRecientes.map((user: any) => {
+                    const userRole = user.role_name || (user.roles && user.roles[0]);
+                    return (
+                      <div key={user.id} className="d-flex align-items-center mb-2 p-2 border rounded">
+                        <div className="bg-light rounded-circle p-2 me-3">
+                          <Person size={16} className="text-primary" />
                         </div>
+                        <div className="flex-grow-1">
+                          <div className="fw-bold small">{user.firstname} {user.lastname}</div>
+                          <div className="d-flex align-items-center small text-muted">
+                            <Envelope className="me-1" size={10} />
+                            {user.email}
+                          </div>
+                        </div>
+                        <Badge bg={userRole === 'admin' ? 'danger' : userRole === 'maestro' ? 'warning' : 'success'} className="px-2">
+                          {userRole || 'sin rol'}
+                        </Badge>
                       </div>
-                      <Badge bg={user.role === 'admin' ? 'danger' : user.role === 'maestro' ? 'warning' : 'success'} className="px-2">
-                        {user.role || 'sin rol'}
-                      </Badge>
-                    </div>
-                  ))
+                    );
+                  })
                 ) : (
                   <p className="text-muted text-center py-4">No hay usuarios recientes</p>
                 )}
@@ -412,7 +414,7 @@ const Dashboard: React.FC = () => {
     );
   }
 
-  if (user.role === 'maestro') {
+  if (currentView === 'maestro') {
     const diaActual = getDiaSemanaActual();
     const clasesHoy = data.clases?.filter((clase: any) => 
       clase.horarios?.some((h: any) => h.dia_semana === diaActual)
@@ -439,7 +441,7 @@ const Dashboard: React.FC = () => {
           <Col md="auto">
             <Badge bg={clasesHoy.length > 0 ? 'success' : 'secondary'} className="px-4 py-3">
               <CalendarCheck className="me-2" size={16} />
-              {clasesHoy.length > 0 ? `${clasesHoy.length} clase(s) hoy` : 'Sin clases hoy'}
+              Vista Maestro
             </Badge>
           </Col>
         </Row>

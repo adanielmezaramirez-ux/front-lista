@@ -9,12 +9,13 @@ import {
   CalendarCheck, 
   BarChartLine,
   PersonBadge,
-  DoorOpen
+  DoorOpen,
+  Calendar
 } from 'react-bootstrap-icons';
 
 const Sidebar: React.FC = () => {
   const location = useLocation();
-  const { user, logout, isAdmin, isMaestro } = useAuth();
+  const { user, logout, currentView } = useAuth();
 
   return (
     <div className="sidebar text-white p-3">
@@ -30,8 +31,8 @@ const Sidebar: React.FC = () => {
         </div>
         <h5 className="mb-1">{user?.firstname} {user?.lastname}</h5>
         <small className="text-white-50 d-block mb-2">@{user?.username}</small>
-        <span className="badge bg-info">
-          {isAdmin ? 'Administrador' : isMaestro ? 'Maestro' : 'Usuario'}
+        <span className={`badge bg-${currentView === 'admin' ? 'danger' : 'warning'}`}>
+          {currentView === 'admin' ? 'Administrador' : 'Maestro'}
         </span>
       </div>
 
@@ -44,7 +45,7 @@ const Sidebar: React.FC = () => {
           <HouseDoor className="me-2" /> Dashboard
         </Nav.Link>
 
-        {isAdmin && (
+        {currentView === 'admin' && (
           <>
             <Nav.Link 
               as={Link} 
@@ -67,10 +68,17 @@ const Sidebar: React.FC = () => {
             >
               <BarChartLine className="me-2" /> Reportes
             </Nav.Link>
+            <Nav.Link 
+              as={Link} 
+              to="/admin/reprogramaciones" 
+              className={location.pathname.includes('/admin/reprogramaciones') ? 'active' : ''}
+            >
+              <Calendar className="me-2" /> Reprogramaciones
+            </Nav.Link>
           </>
         )}
 
-        {isMaestro && (
+        {currentView === 'maestro' && (
           <>
             <Nav.Link 
               as={Link} 

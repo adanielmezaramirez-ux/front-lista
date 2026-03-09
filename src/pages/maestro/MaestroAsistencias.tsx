@@ -5,7 +5,7 @@ import { classService } from '../../services/classService';
 import { Asistencia, Clase, getDiaSemanaNombre } from '../../interfaces';
 import { useMexicoDateTime } from '../../hooks/useMexicoDateTime';
 import LoadingSpinner from '../../components/LoadingSpinner';
-import { Check, X, ArrowLeft, Clock, Calendar, BarChart, InfoCircle } from 'react-bootstrap-icons';
+import { Check, X, ArrowLeft, Clock, Calendar, BarChart, InfoCircle, Person } from 'react-bootstrap-icons';
 
 const MaestroAsistencias: React.FC = () => {
   const { claseId } = useParams<{ claseId: string }>();
@@ -15,27 +15,52 @@ const MaestroAsistencias: React.FC = () => {
   const [historialAsistencias, setHistorialAsistencias] = useState<Asistencia[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [fecha, setFecha] = useState('');
   const [updating, setUpdating] = useState(false);
   const [activeTab, setActiveTab] = useState('hoy');
+  const [estaBloqueada, setEstaBloqueada] = useState(false);
+  const [esReprogramada, setEsReprogramada] = useState(false);
+  const [reprogramacionInfo, setReprogramacionInfo] = useState<any>(null);
   const [estadisticas, setEstadisticas] = useState({
     presentes: 0,
     ausentes: 0,
     porcentaje: 0,
     totalClases: 0,
-    promedioAsistencia: 0
+    promedioAsistencia: 0,
+    asistenciasSistema: 0,
+    asistenciasMaestro: 0
   });
 
-  const { 
-    getMexicoDateString, 
-    mexicoTime, 
-    getDiaSemanaActual,
-    getEstadoClase 
-  } = useMexicoDateTime();
+  const { getMexicoDateString, mexicoTime, getDiaSemanaActual, getEstadoClase, getHoraActual } = useMexicoDateTime();
+  const fechaActual = getMexicoDateString();
+  const diaSemanaActual = getDiaSemanaActual();
+
+  const formatearFechaMexico = (fechaStr: string) => {
+    const fecha = new Date(fechaStr + 'T12:00:00-06:00');
+    return fecha.toLocaleDateString('es-MX', { 
+      timeZone: 'America/Mexico_City',
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+  };
 
   useEffect(() => {
-    setFecha(getMexicoDateString());
-  }, [getMexicoDateString]);
+    const verificarEstadoClase = async () => {
+      if (claseId) {
+        try {
+          const verificado = await classService.verificarClaseReprogramada(Number(claseId), fechaActual);
+          setEstaBloqueada(verificado.estaBloqueada);
+          setEsReprogramada(verificado.esReprogramada);
+          setReprogramacionInfo(verificado.reprogramacion);
+        } catch (error) {
+          console.error('Error verificando reprogramación:', error);
+        }
+      }
+    };
+
+    verificarEstadoClase();
+  }, [claseId, fechaActual]);
 
   const fetchData = useCallback(async () => {
     if (!claseId) {
@@ -50,7 +75,7 @@ const MaestroAsistencias: React.FC = () => {
       
       const [claseData, asistenciasData] = await Promise.all([
         classService.getClaseById(Number(claseId)),
-        classService.getAsistencias(Number(claseId), fecha)
+        classService.getAsistencias(Number(claseId), fechaActual)
       ]);
       
       if (!claseData) {
@@ -68,7 +93,7 @@ const MaestroAsistencias: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [claseId, fecha, activeTab]);
+  }, [claseId, fechaActual, activeTab]);
 
   const fetchHistorial = async () => {
     if (!claseId) return;
@@ -80,13 +105,17 @@ const MaestroAsistencias: React.FC = () => {
       const totalClases = new Set(allAsistencias.map(a => a.fecha)).size;
       const totalAsistencias = allAsistencias.filter(a => a.presente).length;
       const totalRegistros = allAsistencias.length;
+      const asistenciasSistema = allAsistencias.filter(a => a.registrado_por === 'sistema').length;
+      const asistenciasMaestro = allAsistencias.filter(a => a.registrado_por === 'maestro').length;
       
       setEstadisticas({
         presentes: allAsistencias.filter(a => a.presente).length,
         ausentes: allAsistencias.filter(a => !a.presente).length,
         porcentaje: totalRegistros > 0 ? Math.round((totalAsistencias / totalRegistros) * 100) : 0,
         totalClases,
-        promedioAsistencia: totalClases > 0 ? Math.round(totalAsistencias / totalClases) : 0
+        promedioAsistencia: totalClases > 0 ? Math.round(totalAsistencias / totalClases) : 0,
+        asistenciasSistema,
+        asistenciasMaestro
       });
     } catch (error) {
       console.error('Error fetching historial:', error);
@@ -111,7 +140,7 @@ const MaestroAsistencias: React.FC = () => {
       await classService.marcarAsistencia({
         claseId: Number(claseId),
         alumnoId,
-        fecha,
+        fecha: fechaActual,
         presente,
         horarioId
       });
@@ -169,6 +198,8 @@ const MaestroAsistencias: React.FC = () => {
     ? Math.round((asistenciasHoy / totalAlumnos) * 100) 
     : 0;
 
+  const puedeMarcarHoy = puedeMarcar && !estaBloqueada;
+
   return (
     <div className="container-fluid px-0">
       <Button
@@ -189,7 +220,7 @@ const MaestroAsistencias: React.FC = () => {
               <div className="d-flex flex-wrap gap-2">
                 {clase.horarios && clase.horarios.length > 0 ? (
                   clase.horarios.map((h, idx) => {
-                    const esHoy = h.dia_semana === getDiaSemanaActual();
+                    const esHoy = h.dia_semana === diaSemanaActual;
                     return (
                       <Badge 
                         key={idx} 
@@ -230,6 +261,31 @@ const MaestroAsistencias: React.FC = () => {
 
       {error && <Alert variant="danger" onClose={() => setError('')} dismissible>{error}</Alert>}
 
+      {estaBloqueada && (
+        <Alert variant="warning" className="mt-3">
+          <InfoCircle className="me-2" />
+          Esta fecha está bloqueada porque se solicitó una reprogramación.
+          {reprogramacionInfo && reprogramacionInfo.fechaReprogramada && (
+            <span> La clase se impartirá el {formatearFechaMexico(reprogramacionInfo.fechaReprogramada)}</span>
+          )}
+        </Alert>
+      )}
+
+      {esReprogramada && (
+        <Alert variant="success" className="mt-3">
+          <InfoCircle className="me-2" />
+          Esta es una clase reprogramada. Puedes marcar asistencia normalmente.
+        </Alert>
+      )}
+
+      <div className="mb-3">
+        <h5 className="d-inline-block me-3">Fecha de hoy:</h5>
+        <Badge bg="primary" className="p-3">
+          <Calendar className="me-2" />
+          {formatearFechaMexico(fechaActual)}
+        </Badge>
+      </div>
+
       <Tabs activeKey={activeTab} onSelect={(k) => setActiveTab(k || 'hoy')} className="mb-4">
         <Tab eventKey="hoy" title={
           <span><Calendar className="me-2" />Asistencia Hoy</span>
@@ -237,18 +293,7 @@ const MaestroAsistencias: React.FC = () => {
           <Card className="mb-4">
             <Card.Body>
               <Row className="align-items-end">
-                <Col md={4}>
-                  <Form.Group>
-                    <Form.Label>Fecha</Form.Label>
-                    <Form.Control
-                      type="date"
-                      value={fecha}
-                      onChange={(e) => setFecha(e.target.value)}
-                      max={getMexicoDateString()}
-                    />
-                  </Form.Group>
-                </Col>
-                <Col md={4}>
+                <Col md={8}>
                   {updating && (
                     <div className="d-flex align-items-center text-primary">
                       <Spinner size="sm" animation="border" className="me-2" />
@@ -281,13 +326,13 @@ const MaestroAsistencias: React.FC = () => {
                       <th>Nombre Completo</th>
                       <th>Email</th>
                       <th className="text-center">Asistencia</th>
+                      <th>Registrado por</th>
                     </tr>
                   </thead>
                   <tbody>
                     {clase.alumnos && clase.alumnos.length > 0 ? (
                       clase.alumnos.map((alumno, index) => {
                         const asistencia = getAsistenciaAlumno(alumno.id);
-                        const puedeMarcarHoy = puedeMarcar && fecha === getMexicoDateString();
                         
                         return (
                           <tr key={alumno.id}>
@@ -327,11 +372,24 @@ const MaestroAsistencias: React.FC = () => {
                                   <X className="me-2" /> Ausente
                                 </Button>
                               </div>
+                            </td>
+                            <td>
                               {asistencia && (
-                                <div className="mt-2">
+                                <div>
                                   <Badge bg={asistencia.presente ? 'success' : 'danger'}>
                                     {asistencia.presente ? 'Presente' : 'Ausente'}
                                   </Badge>
+                                  <br />
+                                  <small className="text-muted d-flex align-items-center mt-1">
+                                    <Person size={12} className="me-1" />
+                                    {asistencia.registrado_por === 'sistema' ? 'Sistema' : 'Maestro'}
+                                  </small>
+                                  {asistencia.observacion && (
+                                    <small className="text-muted d-block mt-1">
+                                      <InfoCircle size={10} className="me-1" />
+                                      {asistencia.observacion}
+                                    </small>
+                                  )}
                                 </div>
                               )}
                             </td>
@@ -340,7 +398,7 @@ const MaestroAsistencias: React.FC = () => {
                       })
                     ) : (
                       <tr>
-                        <td colSpan={4} className="text-center py-5">
+                        <td colSpan={5} className="text-center py-5">
                           <InfoCircle className="text-muted mb-3" size={32} />
                           <p className="text-muted mb-3">No hay alumnos inscritos en esta clase</p>
                           <Button 
@@ -405,6 +463,18 @@ const MaestroAsistencias: React.FC = () => {
                         <h3 className="mb-0 text-danger">{estadisticas.ausentes}</h3>
                       </div>
                     </Col>
+                    <Col xs={6}>
+                      <div className="text-center p-3 bg-light rounded">
+                        <div className="text-muted small">Sistema</div>
+                        <h3 className="mb-0 text-info">{estadisticas.asistenciasSistema}</h3>
+                      </div>
+                    </Col>
+                    <Col xs={6}>
+                      <div className="text-center p-3 bg-light rounded">
+                        <div className="text-muted small">Maestro</div>
+                        <h3 className="mb-0 text-warning">{estadisticas.asistenciasMaestro}</h3>
+                      </div>
+                    </Col>
                   </Row>
                 </Card.Body>
               </Card>
@@ -424,6 +494,7 @@ const MaestroAsistencias: React.FC = () => {
                       const presentes = asistenciasFecha.filter(a => a.presente).length;
                       const total = asistenciasFecha.length;
                       const porcentaje = Math.round((presentes / total) * 100);
+                      const sistema = asistenciasFecha.filter(a => a.registrado_por === 'sistema').length;
                       
                       return (
                         <Card key={fecha} className="mb-3 border">
@@ -431,33 +502,16 @@ const MaestroAsistencias: React.FC = () => {
                             <Row className="align-items-center">
                               <Col>
                                 <h6 className="mb-2">
-                                  {new Date(fecha).toLocaleDateString('es-MX', { 
-                                    weekday: 'long', 
-                                    year: 'numeric', 
-                                    month: 'long', 
-                                    day: 'numeric' 
-                                  })}
+                                  {formatearFechaMexico(fecha)}
                                 </h6>
-                                <div className="d-flex gap-2">
+                                <div className="d-flex gap-2 flex-wrap">
                                   <Badge bg="success">Presentes: {presentes}</Badge>
                                   <Badge bg="danger">Ausentes: {total - presentes}</Badge>
+                                  <Badge bg="info">Sistema: {sistema}</Badge>
                                   <Badge bg={porcentaje >= 80 ? 'success' : porcentaje >= 60 ? 'warning' : 'danger'}>
                                     {porcentaje}%
                                   </Badge>
                                 </div>
-                              </Col>
-                              <Col md="auto">
-                                <Button
-                                  variant="outline-primary"
-                                  size="sm"
-                                  className="d-inline-flex align-items-center"
-                                  onClick={() => {
-                                    setFecha(fecha);
-                                    setActiveTab('hoy');
-                                  }}
-                                >
-                                  <Calendar className="me-2" /> Ver detalle
-                                </Button>
                               </Col>
                             </Row>
                           </Card.Body>
