@@ -984,9 +984,6 @@ const AdminClasses: React.FC = () => {
       <Modal show={showViewAlumnosModal} onHide={() => setShowViewAlumnosModal(false)} size="lg" centered>
         <Modal.Header closeButton className="bg-gradient-primary text-white border-0">
           <Modal.Title className="d-flex align-items-center">
-            <div className="bg-white bg-opacity-20 p-2 rounded-circle me-3">
-              <People size={18} className="text-white" />
-            </div>
             Detalles - {selectedClase?.nombre}
           </Modal.Title>
         </Modal.Header>
