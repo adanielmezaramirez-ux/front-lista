@@ -41,10 +41,8 @@ export const adminService = {
     return response.data;
   },
 
-  updateClass: async (claseId: number, data: { 
-    nombre?: string; 
-  }): Promise<any> => {
-    const response = await api.put(`/admin/classes/${claseId}`, data);
+  updateClassName: async (claseId: number, nombre: string): Promise<any> => {
+    const response = await api.put(`/admin/classes/${claseId}/nombre`, { nombre });
     return response.data;
   },
 
