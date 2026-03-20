@@ -10,7 +10,7 @@ import {
 } from 'react-bootstrap';
 import { classService } from '../../services/classService';
 import { reprogramacionService } from '../../services/reprogramacionService';
-import { Clase, getDiaSemanaNombre } from '../../interfaces';
+import { Clase, getDiaSemanaNombre, DIAS_SEMANA } from '../../interfaces';
 import { useMexicoDateTime } from '../../hooks/useMexicoDateTime';
 import { Calendar, Clock, InfoCircle, CalendarPlus } from 'react-bootstrap-icons';
 
@@ -34,6 +34,9 @@ const SolicitarReprogramacion: React.FC<SolicitarReprogramacionProps> = ({
     horarioOriginalId: '',
     fechaOriginal: '',
     fechaReprogramada: '',
+    horaInicio: '',
+    horaFin: '',
+    diaSemana: '1',
     motivo: ''
   });
 
@@ -62,7 +65,7 @@ const SolicitarReprogramacion: React.FC<SolicitarReprogramacionProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.horarioOriginalId || !formData.fechaOriginal || !formData.fechaReprogramada || !formData.motivo) {
+    if (!formData.horarioOriginalId || !formData.fechaOriginal || !formData.fechaReprogramada || !formData.motivo || !formData.horaInicio || !formData.horaFin) {
       setError('Todos los campos son requeridos');
       return;
     }
@@ -76,6 +79,9 @@ const SolicitarReprogramacion: React.FC<SolicitarReprogramacionProps> = ({
         horarioOriginalId: Number(formData.horarioOriginalId),
         fechaOriginal: formData.fechaOriginal,
         fechaReprogramada: formData.fechaReprogramada,
+        horaInicio: formData.horaInicio + ':00',
+        horaFin: formData.horaFin + ':00',
+        diaSemana: Number(formData.diaSemana),
         motivo: formData.motivo
       });
       onSuccess();
@@ -84,6 +90,9 @@ const SolicitarReprogramacion: React.FC<SolicitarReprogramacionProps> = ({
         horarioOriginalId: '',
         fechaOriginal: '',
         fechaReprogramada: '',
+        horaInicio: '',
+        horaFin: '',
+        diaSemana: '1',
         motivo: ''
       });
     } catch (error: any) {
@@ -93,7 +102,18 @@ const SolicitarReprogramacion: React.FC<SolicitarReprogramacionProps> = ({
     }
   };
 
-  const horariosFuturos = clase?.horarios?.filter(() => true);
+  const handleHorarioChange = (horarioId: string) => {
+    const horario = clase?.horarios?.find(h => h.id === Number(horarioId));
+    if (horario) {
+      setFormData({
+        ...formData,
+        horarioOriginalId: horarioId,
+        horaInicio: horario.hora_inicio.substring(0,5),
+        horaFin: horario.hora_fin.substring(0,5),
+        diaSemana: horario.dia_semana.toString()
+      });
+    }
+  };
 
   return (
     <Modal show={show} onHide={onHide} size="lg" centered>
@@ -131,11 +151,11 @@ const SolicitarReprogramacion: React.FC<SolicitarReprogramacionProps> = ({
                 </Form.Label>
                 <Form.Select
                   value={formData.horarioOriginalId}
-                  onChange={(e) => setFormData({...formData, horarioOriginalId: e.target.value})}
+                  onChange={(e) => handleHorarioChange(e.target.value)}
                   required
                 >
                   <option value="">Selecciona un horario</option>
-                  {horariosFuturos?.map(horario => (
+                  {clase?.horarios?.map(horario => (
                     <option key={horario.id} value={horario.id}>
                       {getDiaSemanaNombre(horario.dia_semana)} {horario.hora_inicio.substring(0,5)} - {horario.hora_fin.substring(0,5)}
                     </option>
@@ -185,6 +205,52 @@ const SolicitarReprogramacion: React.FC<SolicitarReprogramacionProps> = ({
             </Col>
 
             <Col md={6}>
+              <Form.Group className="mb-3">
+                <Form.Label className="fw-bold">
+                  <Clock className="me-2" />
+                  Día de la semana
+                </Form.Label>
+                <Form.Select
+                  value={formData.diaSemana}
+                  onChange={(e) => setFormData({...formData, diaSemana: e.target.value})}
+                  required
+                >
+                  {DIAS_SEMANA.map(dia => (
+                    <option key={dia.value} value={dia.value}>{dia.label}</option>
+                  ))}
+                </Form.Select>
+              </Form.Group>
+            </Col>
+          </Row>
+
+          <Row>
+            <Col md={6}>
+              <Form.Group className="mb-3">
+                <Form.Label className="fw-bold">Hora de inicio</Form.Label>
+                <Form.Control
+                  type="time"
+                  value={formData.horaInicio}
+                  onChange={(e) => setFormData({...formData, horaInicio: e.target.value})}
+                  required
+                />
+              </Form.Group>
+            </Col>
+
+            <Col md={6}>
+              <Form.Group className="mb-3">
+                <Form.Label className="fw-bold">Hora de fin</Form.Label>
+                <Form.Control
+                  type="time"
+                  value={formData.horaFin}
+                  onChange={(e) => setFormData({...formData, horaFin: e.target.value})}
+                  required
+                />
+              </Form.Group>
+            </Col>
+          </Row>
+
+          <Row>
+            <Col md={12}>
               <Form.Group className="mb-3">
                 <Form.Label className="fw-bold">Motivo de la reprogramación</Form.Label>
                 <Form.Control

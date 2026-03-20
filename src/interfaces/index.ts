@@ -75,18 +75,19 @@ export interface Reprogramacion {
   fecha_original: string;
   fecha_reprogramada: string;
   horario_reprogramado_id?: number;
+  hora_inicio: string;
+  hora_fin: string;
+  dia_semana: number;
   motivo: string;
   solicitado_por: number;
   solicitado_por_nombre: string;
   aprobado_por?: number;
   aprobado_por_nombre?: string;
-  estado: 'pendiente' | 'aprobada' | 'rechazada' | 'cancelada';
+  estado: 'pendiente' | 'aprobada' | 'rechazada';
+  ya_tomada: boolean;
   dia_original?: number;
   hora_inicio_original?: string;
   hora_fin_original?: string;
-  dia_reprogramado?: number;
-  hora_inicio_reprogramado?: string;
-  hora_fin_reprogramado?: string;
   created_at: string;
 }
 

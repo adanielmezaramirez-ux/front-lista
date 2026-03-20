@@ -14,7 +14,7 @@ import {
 } from 'react-bootstrap';
 import { reprogramacionService } from '../../services/reprogramacionService';
 import { adminService } from '../../services/adminService';
-import { Reprogramacion, getEstadoReprogramacion, DIAS_SEMANA, Horario } from '../../interfaces';
+import { Reprogramacion, getEstadoReprogramacion, DIAS_SEMANA, Horario, getDiaSemanaNombre } from '../../interfaces';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import {
   Calendar,
@@ -27,7 +27,9 @@ import {
   InfoCircle,
   Person,
   CalendarCheck,
-  CalendarX
+  CalendarX,
+  CheckCircle,
+  XCircle
 } from 'react-bootstrap-icons';
 
 const AdminReprogramaciones: React.FC = () => {
@@ -37,13 +39,12 @@ const AdminReprogramaciones: React.FC = () => {
   const [error, setError] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [selectedReprogramacion, setSelectedReprogramacion] = useState<Reprogramacion | null>(null);
-  const [horariosClase, setHorariosClase] = useState<Horario[]>([]);
-  const [selectedHorario, setSelectedHorario] = useState<number | null>(null);
   const [procesando, setProcesando] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filtroEstado, setFiltroEstado] = useState<string>('todos');
   const [filtroClase, setFiltroClase] = useState<string>('todos');
   const [clases, setClases] = useState<any[]>([]);
+  const [showDetalleModal, setShowDetalleModal] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -60,8 +61,14 @@ const AdminReprogramaciones: React.FC = () => {
         reprogramacionService.getReprogramaciones(),
         adminService.getClasses()
       ]);
-      setReprogramaciones(reprogData);
-      setFilteredReprogramaciones(reprogData);
+      
+      const processedReprogs = reprogData.map(r => ({
+        ...r,
+        reprogramacion_detalle: r.reprogramacion_detalle ? JSON.parse(r.reprogramacion_detalle as any) : null
+      }));
+      
+      setReprogramaciones(processedReprogs);
+      setFilteredReprogramaciones(processedReprogs);
       setClases(clasesData);
     } catch (error) {
       console.error('Error fetching reprogramaciones:', error);
@@ -92,14 +99,10 @@ const AdminReprogramaciones: React.FC = () => {
     if (!selectedReprogramacion) return;
     setProcesando(true);
     try {
-      await reprogramacionService.procesarReprogramacion(selectedReprogramacion.id, {
-        estado,
-        horarioReprogramadoId: selectedHorario || undefined
-      });
+      await reprogramacionService.procesarReprogramacion(selectedReprogramacion.id, { estado });
       await fetchData();
       setShowModal(false);
       setSelectedReprogramacion(null);
-      setSelectedHorario(null);
     } catch (error) {
       console.error('Error procesando reprogramación:', error);
       setError('Error al procesar la solicitud');
@@ -108,22 +111,23 @@ const AdminReprogramaciones: React.FC = () => {
     }
   };
 
-  const abrirModal = async (reprog: Reprogramacion) => {
+  const abrirModal = (reprog: Reprogramacion) => {
     setSelectedReprogramacion(reprog);
-    if (reprog.clase_id) {
-      try {
-        const clase = await adminService.getClassById(reprog.clase_id);
-        setHorariosClase(clase.horarios || []);
-      } catch (error) {
-        console.error('Error cargando horarios:', error);
-      }
-    }
     setShowModal(true);
+  };
+
+  const verDetalle = (reprog: Reprogramacion) => {
+    setSelectedReprogramacion(reprog);
+    setShowDetalleModal(true);
   };
 
   const getEstadoBadge = (estado: string) => {
     const estadoInfo = getEstadoReprogramacion(estado);
     return <Badge bg={estadoInfo.bg}>{estadoInfo.label}</Badge>;
+  };
+
+  const formatHora = (hora: string) => {
+    return hora ? hora.substring(0,5) : '';
   };
 
   if (loading) return <LoadingSpinner />;
@@ -210,9 +214,11 @@ const AdminReprogramaciones: React.FC = () => {
                 <th>Clase</th>
                 <th>Fecha Original</th>
                 <th>Fecha Reprogramada</th>
+                <th>Nuevo Horario</th>
                 <th>Motivo</th>
                 <th>Solicitante</th>
                 <th>Estado</th>
+                <th>Tomada</th>
                 <th>Acciones</th>
               </tr>
             </thead>
@@ -227,20 +233,23 @@ const AdminReprogramaciones: React.FC = () => {
                       <CalendarX className="text-danger me-2" size={14} />
                       {new Date(reprog.fecha_original).toLocaleDateString('es-MX')}
                     </div>
-                    <small className="text-muted">
-                      {DIAS_SEMANA.find(d => d.value === reprog.dia_original)?.label} {reprog.hora_inicio_original?.substring(0,5)}
-                    </small>
                   </td>
                   <td>
                     <div className="d-flex align-items-center">
                       <CalendarCheck className="text-success me-2" size={14} />
                       {new Date(reprog.fecha_reprogramada).toLocaleDateString('es-MX')}
                     </div>
-                    {reprog.hora_inicio_reprogramado && (
-                      <small className="text-muted">
-                        {DIAS_SEMANA.find(d => d.value === reprog.dia_reprogramado)?.label} {reprog.hora_inicio_reprogramado.substring(0,5)}
-                      </small>
-                    )}
+                  </td>
+                  <td>
+                    <div className="d-flex align-items-center">
+                      <Clock className="text-info me-2" size={14} />
+                      <div>
+                        <div>{getDiaSemanaNombre(reprog.dia_semana)}</div>
+                        <small className="text-muted">
+                          {formatHora(reprog.hora_inicio)} - {formatHora(reprog.hora_fin)}
+                        </small>
+                      </div>
+                    </div>
                   </td>
                   <td>
                     <small>{reprog.motivo}</small>
@@ -253,20 +262,41 @@ const AdminReprogramaciones: React.FC = () => {
                   </td>
                   <td>{getEstadoBadge(reprog.estado)}</td>
                   <td>
-                    <Button
-                      variant="outline-primary"
-                      size="sm"
-                      onClick={() => abrirModal(reprog)}
-                      disabled={reprog.estado !== 'pendiente'}
-                    >
-                      <Eye className="me-1" /> Ver
-                    </Button>
+                    {reprog.ya_tomada ? (
+                      <Badge bg="success">
+                        <CheckCircle className="me-1" size={12} /> Sí
+                      </Badge>
+                    ) : (
+                      <Badge bg="secondary">
+                        <XCircle className="me-1" size={12} /> No
+                      </Badge>
+                    )}
+                  </td>
+                  <td>
+                    <div className="d-flex gap-2">
+                      <Button
+                        variant="outline-info"
+                        size="sm"
+                        onClick={() => verDetalle(reprog)}
+                      >
+                        <Eye className="me-1" /> Ver
+                      </Button>
+                      {reprog.estado === 'pendiente' && (
+                        <Button
+                          variant="outline-primary"
+                          size="sm"
+                          onClick={() => abrirModal(reprog)}
+                        >
+                          <Filter className="me-1" /> Procesar
+                        </Button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
               {filteredReprogramaciones.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="text-center py-5">
+                  <td colSpan={9} className="text-center py-5">
                     <InfoCircle size={48} className="text-muted mb-3" />
                     <p className="text-muted">No hay solicitudes de reprogramación</p>
                   </td>
@@ -276,6 +306,71 @@ const AdminReprogramaciones: React.FC = () => {
           </Table>
         </div>
       </Card>
+
+      <Modal show={showDetalleModal} onHide={() => setShowDetalleModal(false)} size="lg" centered>
+        <Modal.Header closeButton className="bg-light">
+          <Modal.Title className="d-flex align-items-center">
+            <Calendar className="me-2 text-primary" />
+            Detalle de Reprogramación
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {selectedReprogramacion && (
+            <>
+              <Row className="mb-4">
+                <Col md={6}>
+                  <Card className="bg-light border-0">
+                    <Card.Body>
+                      <h6 className="text-danger mb-3">Clase Original</h6>
+                      <p className="mb-1"><strong>Clase:</strong> {selectedReprogramacion.clase_nombre}</p>
+                      <p className="mb-1"><strong>Fecha:</strong> {new Date(selectedReprogramacion.fecha_original).toLocaleDateString('es-MX', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                      <p className="mb-0"><strong>Horario:</strong> {getDiaSemanaNombre(selectedReprogramacion.dia_original || 0)} {formatHora(selectedReprogramacion.hora_inicio_original || '')} - {formatHora(selectedReprogramacion.hora_fin_original || '')}</p>
+                    </Card.Body>
+                  </Card>
+                </Col>
+                <Col md={6}>
+                  <Card className="bg-light border-0">
+                    <Card.Body>
+                      <h6 className="text-success mb-3">Clase Reprogramada</h6>
+                      <p className="mb-1"><strong>Fecha:</strong> {new Date(selectedReprogramacion.fecha_reprogramada).toLocaleDateString('es-MX', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                      <p className="mb-1"><strong>Horario:</strong> {getDiaSemanaNombre(selectedReprogramacion.dia_semana)} {formatHora(selectedReprogramacion.hora_inicio)} - {formatHora(selectedReprogramacion.hora_fin)}</p>
+                      <p className="mb-0"><strong>Motivo:</strong> {selectedReprogramacion.motivo}</p>
+                    </Card.Body>
+                  </Card>
+                </Col>
+              </Row>
+
+              <Row>
+                <Col md={6}>
+                  <p><strong>Solicitante:</strong> {selectedReprogramacion.solicitado_por_nombre}</p>
+                </Col>
+                <Col md={6}>
+                  <p><strong>Estado:</strong> {getEstadoBadge(selectedReprogramacion.estado)}</p>
+                </Col>
+              </Row>
+
+              {selectedReprogramacion.aprobado_por_nombre && (
+                <p><strong>Aprobado por:</strong> {selectedReprogramacion.aprobado_por_nombre}</p>
+              )}
+
+              {selectedReprogramacion.estado === 'aprobada' && (
+                <Alert variant={selectedReprogramacion.ya_tomada ? 'success' : 'info'} className="mt-3">
+                  {selectedReprogramacion.ya_tomada ? (
+                    <>Esta clase reprogramada ya ha sido impartida y tomada</>
+                  ) : (
+                    <>Esta clase reprogramada está aprobada pero aún no se ha impartido</>
+                  )}
+                </Alert>
+              )}
+            </>
+          )}
+        </Modal.Body>
+        <Modal.Footer className="bg-light">
+          <Button variant="secondary" onClick={() => setShowDetalleModal(false)}>
+            Cerrar
+          </Button>
+        </Modal.Footer>
+      </Modal>
 
       <Modal show={showModal} onHide={() => setShowModal(false)} size="lg" centered>
         <Modal.Header closeButton className="bg-light">
@@ -301,7 +396,7 @@ const AdminReprogramaciones: React.FC = () => {
                         })}</strong>
                       </p>
                       <small>
-                        {DIAS_SEMANA.find(d => d.value === selectedReprogramacion.dia_original)?.label} {selectedReprogramacion.hora_inicio_original?.substring(0,5)} - {selectedReprogramacion.hora_fin_original?.substring(0,5)}
+                        {getDiaSemanaNombre(selectedReprogramacion.dia_original || 0)} {selectedReprogramacion.hora_inicio_original?.substring(0,5)} - {selectedReprogramacion.hora_fin_original?.substring(0,5)}
                       </small>
                     </Col>
                     <Col md={6}>
@@ -314,6 +409,9 @@ const AdminReprogramaciones: React.FC = () => {
                           day: 'numeric'
                         })}</strong>
                       </p>
+                      <small>
+                        {getDiaSemanaNombre(selectedReprogramacion.dia_semana)} {selectedReprogramacion.hora_inicio.substring(0,5)} - {selectedReprogramacion.hora_fin.substring(0,5)}
+                      </small>
                     </Col>
                   </Row>
                 </Card.Body>
@@ -328,24 +426,6 @@ const AdminReprogramaciones: React.FC = () => {
                 <h6 className="text-muted mb-2">Solicitante</h6>
                 <p>{selectedReprogramacion.solicitado_por_nombre}</p>
               </div>
-
-              <Form.Group className="mb-3">
-                <Form.Label>Horario para la clase reprogramada (opcional)</Form.Label>
-                <Form.Select
-                  value={selectedHorario || ''}
-                  onChange={(e) => setSelectedHorario(e.target.value ? Number(e.target.value) : null)}
-                >
-                  <option value="">Mantener mismo horario</option>
-                  {horariosClase.map(horario => (
-                    <option key={horario.id} value={horario.id}>
-                      {DIAS_SEMANA.find(d => d.value === horario.dia_semana)?.label} {horario.hora_inicio.substring(0,5)} - {horario.hora_fin.substring(0,5)}
-                    </option>
-                  ))}
-                </Form.Select>
-                <Form.Text className="text-muted">
-                  Si no seleccionas un horario, se mantendrá el horario original
-                </Form.Text>
-              </Form.Group>
 
               {procesando && (
                 <div className="text-center py-3">

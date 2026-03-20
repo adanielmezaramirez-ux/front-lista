@@ -36,6 +36,8 @@ export const classService = {
     fecha: string;
     estaBloqueada: boolean;
     esReprogramada: boolean;
+    puedeNombrarLista: boolean;
+    yaTomada: boolean;
     reprogramacion: any | null;
   }> => {
     const response = await api.get('/reprogramaciones/verificar', {
